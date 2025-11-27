@@ -1,7 +1,6 @@
 <template>
   <div>
     <VRow>
-      <!-- Kolom Kiri: Informasi Produk -->
       <VCol cols="12" md="8">
         <VCard>
           <VCardTitle class="pa-4 bg-grey-lighten-4">
@@ -61,7 +60,6 @@
         </VCard>
       </VCol>
 
-      <!-- Kolom Kanan: Gambar -->
       <VCol cols="12" md="4">
         <VCard>
            <VCardTitle class="pa-4 bg-grey-lighten-4">
@@ -85,11 +83,11 @@
       </VCol>
     </VRow>
 
-    <!-- Baris Bawah: Detail Harga & Stok -->
     <VCard class="mt-6">
        <VCardTitle class="pa-4 bg-grey-lighten-4">
           <span class="text-h5">Harga & Stok</span>
-          <span class="text-body-2 text-medium-emphasis ml-2">- Untuk {{ activeWarehouseName }}</span>
+          <!-- PERBAIKAN: Menampilkan nama Cabang, bukan Gudang -->
+          <span class="text-body-2 text-medium-emphasis ml-2">- Untuk {{ activeBranchName }}</span> 
        </VCardTitle>
        <VCardText>
           <VForm ref="refVFormDetails">
@@ -109,7 +107,6 @@
                       variant="outlined" density="compact"
                    />
                 </VCol>
-                <!-- PENAMBAHAN KOLOM STOCK ALERT -->
                 <VCol cols="12" md="6" lg="2">
                    <VTextField
                       v-model.number="productDetailData.stock_alert"
@@ -139,7 +136,6 @@
        </VCardText>
     </VCard>
 
-    <!-- Tombol Aksi Bawah -->
     <div class="d-flex mt-6">
         <VSpacer />
         <VBtn color="secondary" @click="cancel" variant="text" class="mr-2">Batal</VBtn>
@@ -164,7 +160,7 @@ const isSaving = ref(false)
 const categories = ref<any[]>([])
 const brands = ref<any[]>([])
 const units = ref<any[]>([])
-const activeWarehouseName = ref('')
+const activeBranchName = ref('') // PERBAIKAN: Mengganti activeWarehouseName
 const previewImageUrl = ref<string | null>(null)
 
 const productData = ref({
@@ -181,25 +177,40 @@ const productDetailData = ref({
     purchase_price: 0,
     sales_price: 0,
     current_stock: 0,
-    stock_alert: 0, // <-- Tambahkan state untuk stock_alert
+    stock_alert: 0,
 });
 
 // Computed
 const productId = computed(() => route.params.id)
 const isEditMode = computed(() => !!productId.value)
-const formTitle = computed(() => (isEditMode.value ? 'Edit Data Produk' : 'Tambah Produk Baru'))
+
+// --- PERBAIKAN: Fungsi baru untuk mendapatkan ID Cabang aktif ---
+const getActiveBranch = () => {
+    // Menggunakan kunci 'activeBranch' karena ini adalah data yang benar
+    const branchString = localStorage.getItem('activeBranch');
+    if (branchString) {
+        const branch = JSON.parse(branchString);
+        activeBranchName.value = branch.name || 'N/A';
+        return branch;
+    }
+    activeBranchName.value = 'Cabang Tidak Ditemukan';
+    return { id: null, name: activeBranchName.value };
+};
+// -------------------------------------------------------------
 
 // API Calls
 const fetchDropdownData = async () => {
   try {
+    // Ambil data dropdown
     const [catRes, brandRes, unitRes] = await Promise.all([
       axios.get('/api/categories?all=true'),
       axios.get('/api/brands?all=true'),
       axios.get('/api/units?all=true'),
     ]);
-    categories.value = catRes.data.data.data;
+    // Asumsi struktur response sudah benar, sesuaikan jika perlu
+    categories.value = catRes.data.data.data; 
     brands.value = brandRes.data.data.data;
-    units.value = unitRes.data.data.data;
+    units.value = unitRes.data.data;
   } catch (error) {
     console.error('Gagal mengambil data dropdown:', error);
   }
@@ -207,7 +218,12 @@ const fetchDropdownData = async () => {
 
 const fetchProduct = async () => {
     try {
-        const { data } = await axios.get(`/api/products/${productId.value}`);
+        // Ambil ID cabang aktif untuk filter detail
+        const activeBranch = getActiveBranch();
+        
+        const { data } = await axios.get(`/api/products/${productId.value}`, {
+            params: { branches_id: activeBranch.id }
+        });
         const product = data.data;
         
         productData.value = {
@@ -219,6 +235,7 @@ const fetchProduct = async () => {
             photo: null,
         }
 
+        // Ambil detail pertama (yang sudah difilter di backend berdasarkan branches_id)
         const detail = product.details?.[0];
         if (detail) {
             productDetailData.value = {
@@ -226,21 +243,21 @@ const fetchProduct = async () => {
                 purchase_price: detail.purchase_price,
                 sales_price: detail.sales_price,
                 current_stock: detail.current_stock,
-                stock_alert: detail.stock_alert, // <-- Ambil data stock_alert saat edit
+                stock_alert: detail.stock_alert, 
             }
         }
         previewImageUrl.value = product.image_url;
     } catch (error) {
         console.error('Gagal mengambil data produk:', error);
-        router.push({ name: 'ProductsList' });
+        // router.push({ name: 'ProductsList' }); // Matikan sementara agar tidak redirect saat debug
     }
 }
 
 // Lifecycle
 onMounted(() => {
   fetchDropdownData();
-  const warehouse = JSON.parse(localStorage.getItem('activeWarehouse') || '{}');
-  activeWarehouseName.value = warehouse.name || 'Gudang Utama';
+  // PANGGIL FUNGSI BARU
+  getActiveBranch(); 
 
   if (isEditMode.value) {
     fetchProduct();
@@ -252,7 +269,6 @@ const onFileChange = (e: Event) => {
   const target = e.target as HTMLInputElement;
   if (target.files && target.files[0]) {
     productData.value.photo = target.files[0];
-    // Buat URL preview untuk gambar yang baru dipilih
     previewImageUrl.value = URL.createObjectURL(target.files[0]);
   }
 }
@@ -267,8 +283,23 @@ const save = async () => {
   if (!form1Valid || !form2Valid) return
 
   isSaving.value = true;
+
+  // === PERBAIKAN UTAMA: Mengambil ID Cabang yang benar ===
+  const activeBranch = getActiveBranch();
+  
+  // Pastikan ID cabang ada
+  if (!activeBranch.id) {
+      alert('Gagal: Data cabang tidak ditemukan. Silakan pilih cabang terlebih dahulu.');
+      isSaving.value = false;
+      return;
+  }
+  // === PERBAIKAN SELESAI ===
   
   const formData = new FormData();
+  
+  // Tambahkan ID cabang yang benar ke FormData
+  formData.append('branches_id', String(activeBranch.id));
+
   formData.append('name', productData.value.name);
   if (productData.value.description) formData.append('description', productData.value.description);
   if (productData.value.category_id) formData.append('category_id', String(productData.value.category_id));
@@ -280,7 +311,7 @@ const save = async () => {
   formData.append('purchase_price', String(productDetailData.value.purchase_price));
   formData.append('sales_price', String(productDetailData.value.sales_price));
   formData.append('current_stock', String(productDetailData.value.current_stock));
-  formData.append('stock_alert', String(productDetailData.value.stock_alert)); // <-- Kirim data stock_alert
+  formData.append('stock_alert', String(productDetailData.value.stock_alert));
 
   const config = {
       headers: {
@@ -290,17 +321,27 @@ const save = async () => {
 
   try {
     if (isEditMode.value) {
+      // Untuk update, kadang perlu method spoofing di Laravel jika pakai FormData
       formData.append('_method', 'PUT');
       await axios.post(`/api/products/${productId.value}`, formData, config);
     } else {
       await axios.post('/api/products', formData, config);
     }
-    router.push({ name: 'ProductsList' });
-  } catch (error) {
+    
+    // Redirect setelah sukses
+    router.push({ name: 'ProductsList' }); // Pastikan nama route ini sesuai dengan route list produk anda
+  } catch (error: any) {
     console.error('Gagal menyimpan data produk:', error);
+    
+    // Tampilkan error validasi jika ada
+    if (error.response && error.response.data.errors) {
+        console.log(error.response.data.errors);
+        alert("Gagal menyimpan: " + JSON.stringify(error.response.data.errors));
+    } else if (error.response?.data?.message) {
+        alert("Gagal menyimpan: " + error.response.data.message);
+    }
   } finally {
     isSaving.value = false;
   }
 }
 </script>
-

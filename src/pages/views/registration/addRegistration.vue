@@ -83,6 +83,17 @@
       <VBtn color="secondary" @click="cancel" variant="text">Batal</VBtn>
       <VBtn color="primary" @click="save" variant="flat" :loading="isSaving">Simpan</VBtn>
     </VCardActions>
+
+    <!-- === NOTIFIKASI SNACKBAR DITAMBAHKAN DI SINI === -->
+    <VSnackbar
+      v-model="snackbar.show"
+      :timeout="snackbar.timeout"
+      :color="snackbar.color"
+      location="top right"
+    >
+      {{ snackbar.message }}
+    </VSnackbar>
+    <!-- === SELESAI === -->
   </VCard>
 </template>
 
@@ -101,6 +112,21 @@ const loadingPets = ref(false);
 const customers = ref<any[]>([]);
 const pets = ref<any[]>([]);
 const services = ref<any[]>([]);
+
+// --- STATE UNTUK SNACKBAR ---
+const snackbar = ref({
+  show: false,
+  message: '',
+  color: 'success',
+  timeout: 2000,
+});
+
+// --- FUNGSI HELPER UNTUK MENAMPILKAN SNACKBAR ---
+const showSnackbar = (message: string, color: string = 'success') => {
+  snackbar.value.message = message;
+  snackbar.value.color = color;
+  snackbar.value.show = true;
+};
 
 const registrationData = ref({
   registration_type: null as string | null,
@@ -175,32 +201,46 @@ const cancel = () => {
   router.back();
 };
 
+// --- FUNGSI SAVE DIPERBARUI ---
 const save = async () => {
   const { valid } = await refVForm.value!.validate();
   if (!valid || !registrationData.value.pet_id) {
-    if(!registrationData.value.pet_id) alert('Silakan pilih hewan peliharaan.');
+    if(!registrationData.value.pet_id) {
+        // Ganti alert dengan snackbar error
+        showSnackbar('Silakan pilih hewan peliharaan.', 'error');
+    }
     return;
   }
   
   const branchId = getActiveBranchId();
   if (!branchId) {
-    alert('Cabang aktif tidak ditemukan.');
+    showSnackbar('Cabang aktif tidak ditemukan.', 'error');
     return;
   }
 
   isSaving.value = true;
   try {
+    // 1. Kirim data ke server
     await axios.post('/api/registrations', {
         ...registrationData.value,
         status: 'Terjadwal',
         branches_id: branchId,
     });
-    router.push({ name: 'registrations' });
+    
+    // 2. Hentikan loading dan tampilkan notifikasi sukses
+    isSaving.value = false;
+    showSnackbar('Registrasi berhasil dibuat!', 'success');
+
+    // 3. Tunda navigasi agar notifikasi sempat terbaca
+    setTimeout(() => {
+        router.push({ name: 'registrations' }); 
+        // Ganti 'registrations' dengan 'RegistrationList' jika itu nama route Anda
+    }, snackbar.value.timeout - 500); // Pindah 0.5 detik sebelum snackbar hilang
+
   } catch (error) {
     console.error('Gagal menyimpan registrasi:', error);
-  } finally {
+    showSnackbar('Gagal menyimpan registrasi. Cek console.', 'error');
     isSaving.value = false;
   }
 };
 </script>
-

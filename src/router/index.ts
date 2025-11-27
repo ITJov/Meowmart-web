@@ -22,6 +22,19 @@ import Purchases from '@/pages/views/Stok/purchases.vue'
 import AddPurchases from '@/pages/views/Stok/addPurchases.vue'
 import ServiceList from '@/pages/views/service/serviceList.vue'
 import PembayaranKeluarView from '@/pages/views/payment/PembayaranKeluarView.vue'
+import TransferStockView from '@/pages/views/transfer stock/transferStockView.vue'
+import AddTransferStock from '@/pages/views/transfer stock/addTransferStock.vue'
+import ProfitLossReport from '@/pages/views/laporan/profitLossReport.vue'
+import PaymentReport from '@/pages/views/laporan/paymentReport.vue'
+import MinimumStockReport from '@/pages/views/laporan/minimumStockReport.vue'
+import SalesReport from '@/pages/views/laporan/salesReport.vue'
+import SalesByProductReport from '@/pages/views/laporan/salesByProductReport.vue'
+import StockRecapReport from '@/pages/views/laporan/stockRecapReport.vue'
+import DiscountList from '@/pages/views/discount/discountList.vue'
+import AddDiscount from '@/pages/views/discount/addDiscount.vue'
+import TaxView from '@/pages/views/tax/taxView.vue'
+import ProfileView from '@/pages/views/profile/profileView.vue'
+import AddPembayaranKeluar from '@/pages/views/payment/addPembayaranKeluar.vue'
 
 
 const routes = [
@@ -41,6 +54,16 @@ const routes = [
     path: '/dashboard',
     name: 'Dashboard',
     component: Dashboard,
+    meta: {
+      layout: 'default' 
+    }
+  },
+
+  // profile
+  {
+    path: '/profile', 
+    name: 'profileView', 
+    component: ProfileView,
     meta: {
       layout: 'default' 
     }
@@ -136,7 +159,7 @@ const routes = [
     }
   },
 
-  // Contoh di dalam array routes
+  // products edit
     {
       path: '/products/edit/:id',
       name: 'ProductEdit',
@@ -214,6 +237,47 @@ const routes = [
     }
   },
 
+  // add pembayaran Keluar
+  {
+    path: '/addPembayaranKeluar',
+    name: 'addPembayaranKeluar-management',
+    component: AddPembayaranKeluar,
+    meta: {
+      layout: 'default' 
+    }
+  },
+
+  // Discount
+  {
+    path: '/Discount',
+    name: 'discount-management',
+    component: DiscountList,
+    meta: {
+      layout: 'default' 
+    }
+  },
+
+  // add Discount
+  {
+    path: '/addDiscount',
+    name: 'adddiscount-management',
+    component: AddDiscount,
+    meta: {
+      layout: 'default' 
+    }
+  },
+
+  // tax
+  {
+    path: '/Tax',
+    name: 'tax-management',
+    component: TaxView,
+    meta: {
+      layout: 'default' 
+    }
+  },
+
+
   // service
     {
     path: '/service',
@@ -237,6 +301,70 @@ const routes = [
     component: AddStaffView,
     meta: { layout: 'default' }
   },
+
+  // transfer stock
+  {
+    path: '/transfer-stock',
+    name: 'transfer-stock-list',
+    component: TransferStockView,
+    meta: { requiresAuth: true }
+  },
+
+  // add transfer stock
+  {
+    path: '/create-transfer-stock',
+    name: 'create-transfer-stock',
+    component: AddTransferStock,
+    meta: { requiresAuth: true }
+  },
+
+  // report untung & rugi
+  {
+      path: '/laporan/untung-rugi', 
+      name: 'profit-loss-report',    
+      component: ProfitLossReport, 
+      meta: { layout: 'default' }
+    },
+
+// report pembayaran
+  {
+      path: '/laporan/pembayaran', 
+      name: 'payment-report',    
+      component: PaymentReport, 
+      meta: { layout: 'default' }
+    },
+
+// report minimum stock
+  {
+      path: '/laporan/minimum-stock', 
+      name: 'minimum-stock-report',    
+      component: MinimumStockReport, 
+      meta: { layout: 'default' }
+    },
+
+// report penjualan
+  {
+      path: '/laporan/penjualan', 
+      name: 'sales-report',    
+      component: SalesReport, 
+      meta: { layout: 'default' }
+    },
+
+// report penjualan by produk
+  {
+      path: '/laporan/penjualan-by-product', 
+      name: 'sale-product-report',    
+      component: SalesByProductReport, 
+      meta: { layout: 'default' }
+    },
+
+// report rekap stok
+  {
+      path: '/laporan/rekap-stok', 
+      name: 'rekap-stock-report',    
+      component: StockRecapReport, 
+      meta: { layout: 'default' }
+    },
 
 // dashboard
   {

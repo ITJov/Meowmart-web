@@ -1,5 +1,4 @@
 <template>
-  <!-- DITAMBAHKAN: Satu div sebagai elemen root tunggal -->
   <div>
     <VCard>
       <VCardTitle class="d-flex align-center pa-4">
@@ -16,8 +15,8 @@
           single-line
           class="me-4"
           style="max-width: 250px;"
-        />
-        <VBtn color="primary" @click="openNewItemDialog">
+          placeholder="Cari Hewan / No. Telp Pemilik" />
+        <VBtn color="primary" @click="openNewItemDialog()">
           <VIcon icon="mdi-plus" start />
           Tambah Hewan Baru
         </VBtn>
@@ -40,6 +39,14 @@
           <VBtn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteItem(item)" />
         </div>
       </template>
+      
+      <template #[`item.age_string`]="{ item }">
+        {{ item.age_string || 'N/A' }}
+      </template>
+
+      <template #[`item.date_of_birth`]="{ item }">
+        {{ item.date_of_birth ? new Date(item.date_of_birth).toLocaleDateString('id-ID') : '-' }}
+      </template>
     </VDataTableServer>
 
     <VDialog v-model="isDialogVisible" max-width="600px">
@@ -56,35 +63,55 @@
                     v-model="editedItem.name"
                     label="Nama Hewan"
                     :rules="[v => !!v || 'Nama wajib diisi']"
+                    variant="outlined" density="compact"
                   />
                 </VCol>
                 <VCol cols="12" md="4">
-                    <VTextField v-model="editedItem.breed" label="Ras (Breed)" />
+                    <VTextField v-model="editedItem.breed" label="Ras (Breed)" variant="outlined" density="compact" />
                 </VCol>
                 <VCol cols="12" md="4">
-                    <VTextField v-model="editedItem.color" label="Warna" />
+                    <VTextField v-model="editedItem.color" label="Warna" variant="outlined" density="compact" />
                 </VCol>
                 <VCol cols="12" md="4">
-                    <VTextField v-model="editedItem.age" label="Umur" />
+                  <VTextField
+                    v-model="editedItem.date_of_birth"
+                    label="Tanggal Lahir"
+                    type="date"
+                    variant="outlined"
+                    density="compact"
+                  />                
                 </VCol>
+                
                 <VCol cols="12">
                   <VSelect
-                      v-model="editedItem.pet_type_id"
+                      v-model="editedItem.pet_type_id" 
                       :items="petTypes"
                       item-title="name"
                       item-value="id"
                       label="Tipe Hewan"
                       :rules="[v => !!v || 'Tipe Hewan wajib dipilih']"
+                      variant="outlined" density="compact"
+                      :no-data-text="petTypes.length === 0 ? 'Data Tipe Hewan Kosong' : 'Tidak ditemukan'"
+                      :loading="loadingDropdowns"
                   />
+                  <div v-if="petTypes.length === 0 && !loadingDropdowns" class="text-caption text-error mt-1">
+                    * Data Tipe Hewan kosong. Mohon input Master Data Tipe Hewan terlebih dahulu.
+                  </div>
                 </VCol>
+
                 <VCol cols="12">
                   <VSelect
                       v-model="editedItem.customer_id"
                       :items="customers"
-                      item-title="name"
+                      item-title="display_name_phone" 
                       item-value="id"
                       label="Pemilik (Customer)"
                       :rules="[v => !!v || 'Pemilik wajib dipilih']"
+                      variant="outlined" 
+                      density="compact"
+                      :loading="loadingDropdowns"
+                      clearable
+                      chips prepend-inner-icon="mdi-magnify"
                   />
                 </VCol>
               </VRow>
@@ -93,23 +120,27 @@
         </VCardText>
         <VCardActions class="pa-4">
           <VSpacer />
-          <VBtn color="secondary" @click="closeDialog">Batal</VBtn>
-          <VBtn color="primary" @click="save">Simpan</VBtn>
+          <VBtn color="secondary" variant="text" @click="closeDialog">Batal</VBtn>
+          <VBtn color="primary" variant="flat" @click="save">Simpan</VBtn>
         </VCardActions>
       </VCard>
     </VDialog>
-  </div> <!-- AKHIR DARI DIV PEMBUNGKUS -->
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import axios from '@/plugins/axios'
 import type { VForm } from 'vuetify/components'
 
-// State untuk Tabel
+const router = useRouter()
+const route = useRoute()
+
 const pets = ref<any[]>([])
 const search = ref('')
 const loading = ref(true)
+const loadingDropdowns = ref(false)
 const totalPets = ref(0)
 const options = ref({
   page: 1,
@@ -122,37 +153,40 @@ const headers = [
   { title: 'TIPE', key: 'pet_type.name', sortable: false },
   { title: 'RAS', key: 'breed' },
   { title: 'WARNA', key: 'color' },
-  { title: 'UMUR', key: 'age' },
+  { title: 'TANGGAL LAHIR', key: 'date_of_birth' },
+  { title: 'UMUR', key: 'age_string', sortable: false },
   { title: 'AKSI', key: 'actions', sortable: false },
 ] as const;
 
-// State untuk Dialog
 const isDialogVisible = ref(false)
 const refVForm = ref<VForm>()
 const editedIndex = ref(-1)
+
 const editedItem = ref({
   id: 0,
   name: '',
-  customer_id: null,
-  pet_type_id: null,
+  customer_id: null as number | null,
+  pet_type_id: null as number | null,
   breed: '',
   color: '',
-  age: '',
+  date_of_birth: null as string | null,
 })
 const defaultItem = { ...editedItem.value }
+
 const formTitle = computed(() => (editedIndex.value === -1 ? 'Tambah Hewan Baru' : 'Edit Data Hewan'))
-const customers = ref([])
-const petTypes = ref([])
+
+const customers = ref<any[]>([])
+const petTypes = ref<any[]>([])
 
 const getActiveBranchId = () => {
-    const activeBranchString = localStorage.getItem('activeBranch');
+    const activeBranchString = localStorage.getItem('activeBranch'); 
     if (activeBranchString) {
         return JSON.parse(activeBranchString).id;
     }
     return null;
 }
 
-// Logika Fetch Data
+// FUNGSI INI AKAN MENGIRIM SEARCH KE BACKEND
 const fetchPets = async () => {
   const branchId = getActiveBranchId();
   if (!branchId) return;
@@ -163,7 +197,7 @@ const fetchPets = async () => {
       params: {
         page: options.value.page,
         per_page: options.value.itemsPerPage,
-        search: search.value,
+        search: search.value, // <--- search term dikirim ke backend
         branches_id: branchId,
       },
     })
@@ -187,39 +221,52 @@ const loadInitialData = async () => {
   
   fetchPets();
 
+  loadingDropdowns.value = true;
   try {
-    // Mengambil data customer dan pet type secara paralel untuk efisiensi
     const [customerResponse, petTypeResponse] = await Promise.all([
       axios.get('/api/customers', { params: { all: true, branches_id: branchId } }),
-      axios.get('/api/petType') // Endpoint yang sudah benar
+      axios.get('/api/petType', { params: { all: true, branches_id: branchId } }) 
     ]);
 
-    // Parsing data customer
-    if (customerResponse.data && customerResponse.data.data && customerResponse.data.data.data) {
-        customers.value = customerResponse.data.data.data;
+    if (customerResponse.data) {
+        const rawCustomers = customerResponse.data.data?.data || customerResponse.data.data || [];
+        
+        customers.value = rawCustomers.map((c: any) => ({
+            ...c,
+            display_name_phone: `${c.name} (${c.phone || 'No HP'})` 
+        }));
     }
 
-    // --- PERBAIKAN UTAMA DI SINI ---
-    // Parsing data petType yang lebih aman untuk menangani berbagai format response
-    if (petTypeResponse.data && petTypeResponse.data.data) {
-        // Cek jika formatnya paginasi: { data: { data: [...] } }
-        if (Array.isArray(petTypeResponse.data.data.data)) {
-            petTypes.value = petTypeResponse.data.data.data;
-        } 
-        // Cek jika formatnya array langsung: { data: [...] }
-        else if (Array.isArray(petTypeResponse.data.data)) {
-            petTypes.value = petTypeResponse.data.data;
+    // 2. Parsing Pet Type Data
+    if (petTypeResponse.data) {
+        const rawData = petTypeResponse.data.data;
+        if (rawData && Array.isArray(rawData.data)) {
+             petTypes.value = rawData.data; 
+        } else if (Array.isArray(rawData)) {
+             petTypes.value = rawData; 
+        } else {
+             petTypes.value = [];
         }
     }
     
   } catch (error) {
-    console.error('Gagal mengambil data untuk dropdown:', error);
+    console.error('Gagal mengambil data dropdown:', error);
+  } finally {
+    loadingDropdowns.value = false;
   }
 }
 
 onMounted(() => {
   loadInitialData();
   window.addEventListener('branch-changed', loadInitialData);
+
+  if (route.query.new_pet_for_customer) {
+    const customerId = Number(route.query.new_pet_for_customer);
+    if (customerId) {
+      openNewItemDialog(customerId);
+    }
+    router.replace({ query: {} });
+  }
 });
 
 onUnmounted(() => {
@@ -231,18 +278,22 @@ watch(search, () => {
   fetchPets()
 })
 
-// Logika Dialog & CRUD
-const openNewItemDialog = () => {
+const openNewItemDialog = (customerId: number | null = null) => {
   editedIndex.value = -1
   editedItem.value = { ...defaultItem }
+  if (customerId) {
+    editedItem.value.customer_id = customerId;
+  }
   isDialogVisible.value = true
 }
 
 const openEditItemDialog = (item: any) => {
   editedIndex.value = pets.value.indexOf(item)
-  editedItem.value = { ...item,
+  editedItem.value = { 
+    ...item,
     customer_id: item.customer?.id || null,
     pet_type_id: item.pet_type?.id || null,
+    date_of_birth: item.date_of_birth ? new Date(item.date_of_birth).toISOString().split('T')[0] : null
    }
   isDialogVisible.value = true
 }
@@ -293,4 +344,3 @@ const deleteItem = async (item: any) => {
   }
 }
 </script>
-

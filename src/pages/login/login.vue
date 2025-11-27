@@ -1,93 +1,3 @@
-<script setup lang="ts">
-import { ref, onMounted } from 'vue' // <-- Import 'onMounted'
-import { VForm } from 'vuetify/components'
-import axios from '@/plugins/axios'
-import { useRouter, useRoute } from 'vue-router'
-import Dashboard from '../dashboard/dashboard.vue'
-
-const refVForm = ref<VForm>()
-const email = ref('')
-const password = ref('')
-const rememberMe = ref(false)
-const isPasswordVisible = ref(false)
-const errors = ref<Record<string, string | undefined>>({
-  email: undefined,
-  password: undefined,
-})
-
-const router = useRouter()
-const route = useRoute()
-
-// onMounted(() => {
-//   if (localStorage.getItem('userData')) {
-//     router.replace('/dashboard')
-//   }
-// })
-
-const login = async () => {
-  // <-- 1. Reset error setiap kali fungsi login dipanggil
-  errors.value = { email: undefined, password: undefined };
-
-  try {
-    // Step 1: Get CSRF cookie
-    await axios.get('/sanctum/csrf-cookie')
-
-    // Step 2: Attempt login
-    const loginResponse = await axios.post('/api/login', {
-      email: email.value,
-      password: password.value,
-      remember: rememberMe.value,
-    })
-
-    // Destructure data from successful response
-    const { access_token, user } = loginResponse.data
-
-    // Store auth data in localStorage
-    localStorage.setItem('userData', JSON.stringify(user))
-    localStorage.setItem('accessToken', access_token)
-
-    // Store the active warehouse for the session
-    if (user.warehouse) {
-        localStorage.setItem('activeWarehouse', JSON.stringify(user.warehouse));
-    }
-
-    // Redirect to dashboard
-    await router.replace({ name: 'Dashboard' }) 
-
-  } catch (e: any) {
-    console.error("Login error response:", e.response);
-
-    // <-- 2. Penanganan Error yang Lebih Spesifik dan Akurat
-    if (e.response && e.response.status === 422) {
-      // Handle validation errors from Laravel
-      const validationErrors = e.response.data.errors;
-      if (validationErrors) {
-        // Assign errors to the correct fields
-        errors.value.email = validationErrors.email?.[0];
-        errors.value.password = validationErrors.password?.[0];
-
-        // tampilkan di field email sebagai fallback.
-        if (!errors.value.email && !errors.value.password) {
-            errors.value.email = e.response.data.message;
-        }
-      } else {
-        // Fallback for 422 error without a structured 'errors' object
-        errors.value.email = e.response.data.message || 'An unknown validation error occurred.';
-      }
-    } else {
-      // Handle other errors (network, server errors, etc.)
-      errors.value.email = 'Could not connect to the server. Please try again later.';
-    }
-  }
-}
-
-
-const onSubmit = async () => {
-  const isValid = await refVForm.value?.validate()
-  if (isValid) login()
-}
-</script>
-
 <template>
   <div class="login-page d-flex align-center justify-center">
     <VCard elevation="8" class="pa-8" max-width="400">
@@ -157,6 +67,90 @@ const onSubmit = async () => {
     </VCard>
   </div>
 </template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { VForm } from 'vuetify/components'
+import axios from '@/plugins/axios'
+import { useRouter, useRoute } from 'vue-router'
+import Dashboard from '../dashboard/dashboard.vue'
+
+const refVForm = ref<VForm>()
+const email = ref('')
+const password = ref('')
+const rememberMe = ref(false)
+const isPasswordVisible = ref(false)
+const errors = ref<Record<string, string | undefined>>({
+  email: undefined,
+  password: undefined,
+})
+
+const router = useRouter()
+const route = useRoute()
+
+// onMounted(() => {
+//   if (localStorage.getItem('userData')) {
+//     router.replace('/dashboard')
+//   }
+// })
+
+const login = async () => {
+  errors.value = { email: undefined, password: undefined };
+
+  try {
+    // Step 1: Get CSRF cookie
+    await axios.get('/sanctum/csrf-cookie')
+
+    // Step 2: Attempt login
+    const loginResponse = await axios.post('/api/login', {
+      email: email.value,
+      password: password.value,
+      remember: rememberMe.value,
+    })
+
+    // Destructure data from successful response, termasuk active_branch
+    const { access_token, user, active_branch } = loginResponse.data
+
+    // Store auth data in localStorage
+    localStorage.setItem('userData', JSON.stringify(user))
+    localStorage.setItem('accessToken', access_token)
+
+    // Store the active branch for the session
+    if (active_branch) {
+        localStorage.setItem('activeBranch', JSON.stringify(active_branch)); // <-- Menggunakan key yang dikirim backend
+    }
+
+    // Redirect to dashboard
+    await router.replace({ name: 'Dashboard' }) 
+
+  } catch (e: any) {
+    console.error("Login error response:", e.response);
+
+    // Penanganan Error yang Lebih Spesifik dan Akurat
+    if (e.response && e.response.status === 422) {
+      const validationErrors = e.response.data.errors;
+      if (validationErrors) {
+        errors.value.email = validationErrors.email?.[0];
+        errors.value.password = validationErrors.password?.[0];
+
+        if (!errors.value.email && !errors.value.password) {
+            errors.value.email = e.response.data.message;
+        }
+      } else {
+        errors.value.email = e.response.data.message || 'An unknown validation error occurred.';
+      }
+    } else {
+      errors.value.email = 'Could not connect to the server. Please try again later.';
+    }
+  }
+}
+
+
+const onSubmit = async () => {
+  const isValid = await refVForm.value?.validate()
+  if (isValid) login()
+}
+</script>
 
 <style scoped>
 .login-page {

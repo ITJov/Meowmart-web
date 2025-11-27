@@ -32,12 +32,28 @@
       class="text-no-wrap"
       @update:options="fetchCustomers"
     >
+      <!-- --- PERUBAHAN DI SINI: Tambah Tombol Aksi --- -->
       <template #[`item.actions`]="{ item }">
         <div class="d-flex gap-1">
-          <VBtn icon="mdi-pencil" size="small" variant="text" @click="openEditItemDialog(item)" />
-          <VBtn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteItem(item)" />
+          <VBtn 
+            icon="mdi-plus" 
+            size="small" 
+            variant="text" 
+            color="info" 
+            title="Tambah Hewan"
+            @click="goToAddPet(item)"
+          />
+          <VBtn icon="mdi-pencil" size="small" variant="text" title="Edit Pelanggan" @click="openEditItemDialog(item)" />
+          <VBtn icon="mdi-delete" size="small" variant="text" color="error" title="Hapus Pelanggan" @click="deleteItem(item)" />
         </div>
       </template>
+      <!-- --- SELESAI PERUBAHAN --- -->
+
+      <!-- Format Tanggal -->
+      <template #[`item.created_at`]="{ item }">
+        {{ new Date(item.created_at).toLocaleDateString('id-ID') }}
+      </template>
+
     </VDataTableServer>
 
     <VDialog v-model="isDialogVisible" max-width="600px" persistent>
@@ -47,7 +63,7 @@
         </VCardTitle>
         <VCardText>
           <VForm ref="refVForm" @submit.prevent="save">
-            <VContainer>
+            <Container>
               <VRow>
                 <VCol cols="12">
                   <VTextField
@@ -70,19 +86,12 @@
                     :rules="[v => !!v || 'Nomor HP wajib diisi']"
                   />
                 </VCol>
+                
                 <VCol cols="12">
                   <VTextarea v-model="editedItem.address" label="Alamat" />
                 </VCol>
-                <VCol v-if="editedIndex === -1" cols="12">
-                  <VTextField
-                    v-model="editedItem.password"
-                    label="Password"
-                    type="password"
-                    :rules="[v => !!v || 'Password wajib diisi saat membuat pelanggan baru']"
-                  />
-                </VCol>
               </VRow>
-            </VContainer>
+            </Container>
           </VForm>
         </VCardText>
         <VCardActions class="pa-4">
@@ -95,10 +104,13 @@
 </template>
 
 <script setup lang="ts">
-// DIUBAH: Pastikan onUnmounted di-import
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router' 
 import axios from '@/plugins/axios'
 import type { VForm } from 'vuetify/components'
+
+// --- INISIALISASI ROUTER ---
+const router = useRouter()
 
 // --- State untuk Tabel ---
 const customers = ref<any[]>([])
@@ -128,7 +140,7 @@ const editedItem = ref({
   email: '',
   phone: '',
   address: '',
-  password: '',
+  password: '', // Biarkan string kosong
 })
 const defaultItem = { ...editedItem.value }
 const formTitle = computed(() => (editedIndex.value === -1 ? 'Tambah Pelanggan Baru' : 'Edit Data Pelanggan'))
@@ -154,7 +166,7 @@ const fetchCustomers = async () => {
         page: options.value.page,
         per_page: options.value.itemsPerPage,
         search: search.value,
-        branches_id: branchId, // Menggunakan 'branches_id' sesuai permintaan
+        branches_id: branchId,
       },
     })
     customers.value = data.data.data
@@ -192,7 +204,8 @@ const openNewItemDialog = () => {
 
 const openEditItemDialog = (item: any) => {
   editedIndex.value = customers.value.indexOf(item)
-  editedItem.value = { ...item, password: '' }
+  // Set password menjadi string kosong agar tidak mengirim hash lama
+  editedItem.value = { ...item, password: '' } 
   isDialogVisible.value = true
 }
 
@@ -207,18 +220,26 @@ const save = async () => {
   const branchId = getActiveBranchId();
   if (!branchId) return;
 
-  // DIUBAH: Siapkan data untuk dikirim, pastikan nama key konsisten
-  const payload = {
+  // Siapkan payload
+  const payload: any = {
       ...editedItem.value,
       branches_id: branchId 
   }
 
+  // LOGIKA PENTING: Hapus password dari payload jika kosong (untuk mode update/edit)
+  // Ini mencegah pengiriman string kosong "" dan menimpa password yang sudah ada.
+  if (!payload.password) {
+      delete payload.password;
+  }
+  
   loading.value = true
   try {
     if (editedIndex.value > -1) {
+      // Mode Edit: Password dihapus jika tidak diubah
       await axios.put(`/api/customers/${editedItem.value.id}`, payload)
     }
     else {
+      // Mode Create: Jika password kosong, backend harus handle (diasumsikan backend bisa handle atau password dikirim sebagai null)
       await axios.post('/api/customers', payload)
     }
     closeDialog()
@@ -247,4 +268,15 @@ const deleteItem = async (item: any) => {
     }
   }
 }
+
+// --- FUNGSI BARU UNTUK NAVIGASI ---
+const goToAddPet = (customer: any) => {
+  // Navigasi ke halaman tambah hewan, membawa ID customer melalui query
+  router.push({ 
+    name: 'pets-management', 
+    query: { new_pet_for_customer: customer.id } 
+  });
+};
+// --- SELESAI ---
+
 </script>

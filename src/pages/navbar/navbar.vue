@@ -25,6 +25,7 @@
         flat
         hide-details
         return-object
+        :disabled="isCashier"
       />
     </div>
 
@@ -89,6 +90,7 @@
           link
           title="Profile"
           prepend-icon="mdi-account-outline"
+          @click="goToProfile" 
         />
         <VListItem
           link
@@ -112,13 +114,17 @@ const emit = defineEmits(['toggle-sidebar'])
 const userDataString = localStorage.getItem('userData')
 const userData = userDataString ? JSON.parse(userDataString) : {}
 const userName = ref(userData.name || 'User')
-const userRole = ref(userData.role?.display_name || 'Role')
+const userRole = ref(userData.role_name || 'Role') // Mengambil role_name dari backend
 
 const userInitials = computed(() => {
   const nameParts = userName.value.split(' ')
   if (nameParts.length > 1) return `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase()
   return nameParts[0] ? nameParts[0].substring(0, 2).toUpperCase() : 'U'
 })
+
+// === COMPUTED PROPERTY BARU ===
+const isCashier = computed(() => userRole.value.toLowerCase() === 'kasir');
+// =============================
 
 interface Branch {
   id: number;
@@ -133,7 +139,6 @@ const fetchBranches = async () => {
   try {
     const { data } = await axios.get('/api/branches')
     if (data && data.data) {
-      // Menyesuaikan dengan struktur response Laravel paginasi atau all
       const branchData = Array.isArray(data.data) ? data.data : data.data.data
       if (Array.isArray(branchData)) {
         allBranches.value = branchData
@@ -158,15 +163,20 @@ onMounted(async () => {
 })
 
 watch(selectedBranch, (newActiveBranch) => {
-  if (isInitialLoad.value || !newActiveBranch) return
+  // Hanya proses jika bukan load awal DAN jika user bukan kasir
+  if (isInitialLoad.value || !newActiveBranch || isCashier.value) return
 
   if (newActiveBranch) {
     localStorage.setItem('activeBranch', JSON.stringify(newActiveBranch))
 
-    
+    // Trigger event agar komponen lain me-refresh data
     window.dispatchEvent(new CustomEvent('branch-changed'));
   }
 })
+
+const goToProfile = () => {
+    router.push({ name: 'profileView' });
+}
 
 
 const handleLogout = async () => {

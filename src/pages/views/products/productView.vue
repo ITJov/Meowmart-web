@@ -1,386 +1,768 @@
 <template>
-  <VRow>
-    <!-- Kolom Kiri: Grid Produk -->
-    <VCol cols="12" :md="cart.length > 0 ? 8 : 12" class="transition-swing">
-      <div>
-        <div class="d-flex align-center pa-1 mb-4">
-          <VSpacer />
-          <VSelect
-            v-model="activeTab"
-            :items="categoryItems"
-            item-title="name"
-            item-value="id"
-            label="Filter Kategori"
-            density="compact"
-            variant="solo-filled"
-            flat
-            hide-details
-            single-line
-            class="me-4"
-            style="max-width: 250px;"
-            clearable
-            @update:modelValue="!$event && (activeTab = 'all')"
-          />
-          <VTextField
-            v-model="search"
-            density="compact"
-            label="Cari produk..."
-            prepend-inner-icon="mdi-magnify"
-            variant="solo-filled"
-            flat
-            hide-details
-            single-line
-          />
-        </div>
+  <div class="fill-height bg-grey-lighten-5 pa-3">
+    <VRow class="match-height">
+      
+      <VCol cols="12" md="4" lg="4" class="d-flex flex-column h-100">
+        <VCard class="flex-grow-1 d-flex flex-column" elevation="2">
+          <VCardTitle class="d-flex align-center py-3 px-4 bg-primary text-white border-b">
+            <VIcon icon="mdi-account-plus" start />
+            <span class="text-h6 font-weight-bold">Registrasi Walk-in</span>
+          </VCardTitle>
 
-        <VRow v-if="loading && products.length === 0" class="mt-4">
-            <VCol v-for="n in 8" :key="n" cols="6" sm="4" md="4" lg="3">
-                <VSkeletonLoader type="card" />
-            </VCol>
-        </VRow>
-        <VRow v-else-if="!loading && products.length === 0" class="text-center pa-10">
-            <VCol cols="12">
-                <VIcon icon="mdi-package-variant-remove" size="80" color="grey-lighten-2" />
-                <h3 class="text-h6 mt-4">Data Produk Tidak Ditemukan</h3>
-                <p class="text-medium-emphasis">Coba ganti filter atau kata kunci pencarian Anda.</p>
-            </VCol>
-        </VRow>
-        <VRow v-else>
-          <VCol
-            v-for="product in products"
-            :key="product.id"
-            cols="6" sm="4" md="4" lg="3"
-          >
-            <VCard class="product-card" hover elevation="2" @click="handleAddToCart(product)">
-              <div class="card-visual-wrapper">
-                <VImg
-                  :src="product.image_url || 'https://placehold.co/400x400/eeeeee/cccccc?text=No+Image'"
-                  :alt="product.name"
-                  height="220"
-                  cover
-                />
-                <VChip color="success" size="small" class="stock-chip">
-                  Stok: {{ getProductStock(product) }}
-                </VChip>
-                <div 
-                  v-if="addedProductFeedback[String(product.id)]"
-                  class="added-feedback-overlay d-flex flex-column align-center justify-center"
+          <div class="flex-grow-1 overflow-y-auto pa-4">
+            <VForm ref="regFormRef" @submit.prevent="submitRegistration">
+              
+              <div class="mb-4">
+                <label class="text-caption font-weight-bold text-medium-emphasis mb-1 d-block">Layanan</label>
+                <VSelect
+                  v-model="formData.service"
+                  :items="serviceList"
+                  item-title="name"
+                  item-value="id"
+                  return-object
+                  placeholder="Pilih Jasa / Layanan"
+                  variant="outlined"
+                  density="compact"
+                  :rules="[v => !!v || 'Layanan wajib dipilih']"
+                  prepend-inner-icon="mdi-stethoscope"
+                  @update:modelValue="handleServiceChange"
                 >
-                  <VIcon icon="mdi-check-circle-outline" size="64" color="white" />
-                  <span class="text-h6 font-weight-bold text-white mt-2">Ditambahkan!</span>
+                  <template #item="{ props, item }">
+                    <VListItem v-bind="props" :subtitle="formatCurrency(item.raw.price)" />
+                  </template>
+                </VSelect>
+              </div>
+
+              <div class="mb-4">
+                <label class="text-caption font-weight-bold text-medium-emphasis mb-1 d-block">Pelanggan</label>
+                <VAutocomplete
+                  v-model="formData.customer_id"
+                  :items="customerList"
+                  item-title="display_name_phone" 
+                  item-value="id"
+                  placeholder="Cari Nama / No. Telepon Customer..."
+                  variant="outlined"
+                  density="compact"
+                  :rules="[v => !!v || 'Customer wajib dipilih']"
+                  prepend-inner-icon="mdi-account-search"
+                  @update:modelValue="fetchPetsForCustomer"
+                  :loading="loadingCustomers"
+                  no-data-text="Data tidak ditemukan"
+                  clearable
+                />
+              </div>
+
+              <div class="mb-4 bg-grey-lighten-4 pa-3 rounded border" style="min-height: 120px;">
+                <label class="text-caption font-weight-bold text-medium-emphasis mb-2 d-block">Hewan Peliharaan</label>
+                
+                <div v-if="loadingPets" class="text-center py-4">
+                   <VProgressCircular indeterminate color="primary" size="24" />
+                </div>
+
+                <div v-else-if="!formData.customer_id" class="text-center py-4 text-caption text-grey">
+                   <VIcon icon="mdi-arrow-up" class="mb-1" />
+                   <div>Pilih customer di atas</div>
+                </div>
+
+                <div v-else-if="petList.length > 0">
+                   <VRadioGroup v-model="formData.pet_id" color="primary" :rules="[v => !!v || 'Pilih hewan']">
+                      <VRadio 
+                        v-for="pet in petList" 
+                        :key="pet.id" 
+                        :value="pet.id"
+                        class="mb-1"
+                      >
+                        <template #label>
+                          <span class="text-body-2 font-weight-medium text-high-emphasis">
+                            {{ pet.name }} 
+                            <span class="text-caption text-grey">({{ pet.pet_type?.name || 'N/A' }})</span>
+                          </span>
+                        </template>
+                      </VRadio>
+                   </VRadioGroup>
+                </div>
+
+                <div v-else class="text-center py-4 text-error text-caption">
+                   <VIcon icon="mdi-paw-off" color="error" />
+                   <div>Customer ini tidak memiliki data hewan.</div>
                 </div>
               </div>
-              <VCardText class="pb-2">
-                <h3 class="product-name font-weight-bold mb-1">{{ product.name }}</h3>
-                <div class="text-h6 font-weight-bold text-primary">
-                  {{ formatCurrency(getProductPrice(product)) }}
-                </div>
-              </VCardText>
-            </VCard>
-          </VCol>
-        </VRow>
 
-      </div>
-    </VCol>
+              <VExpandTransition>
+                <VRow v-if="isHotelServiceSelected" class="mb-4">
+                    <VCol cols="12" md="6" class="py-0">
+                        <label class="text-caption font-weight-bold text-medium-emphasis mb-1 d-block">Check-in Date</label>
+                        <VTextField
+                            v-model="formData.start_date"
+                            type="date"
+                            variant="outlined"
+                            density="compact"
+                            :rules="[v => !!v || 'Check-in wajib diisi']"
+                            hide-details="auto"
+                            class="mb-2"
+                            @update:modelValue="fetchAvailableKandangs"
+                        />
+                    </VCol>
+                    <VCol cols="12" md="6" class="py-0">
+                        <label class="text-caption font-weight-bold text-medium-emphasis mb-1 d-block">Check-out Date</label>
+                        <VTextField
+                            v-model="formData.end_date"
+                            type="date"
+                            variant="outlined"
+                            density="compact"
+                            :rules="endDateRules"
+                            hide-details="auto"
+                            class="mb-2"
+                            @update:modelValue="fetchAvailableKandangs"
+                        />
+                    </VCol>
 
-    <!-- Kolom Kanan: Keranjang Belanja -->
-    <VCol v-if="cart.length > 0" cols="12" md="4" class="transition-swing">
-      <VCard>
-        <VCardTitle class="d-flex align-center pa-4">
-          <span>Order Saat Ini</span>
-          <VSpacer />
-          <VBtn icon="mdi-close" variant="text" size="small" @click="clearCart" />
-        </VCardTitle>
-        <VDivider />
-        <VList lines="two" style="max-height: 400px; overflow-y: auto;">
-          <VListItem
-            v-for="item in cart"
-            :key="String(item.id)"
-            :prepend-avatar="item.image_url || 'https://placehold.co/40x40/eeeeee/cccccc?text=N/A'"
+                    <VCol cols="12" class="py-0 mt-1">
+                         <label class="text-caption font-weight-bold text-medium-emphasis mb-1 d-block">Pilih Kandang</label>
+                        <VSelect
+                            v-model="formData.kandang_id"
+                            :items="availableKandangs"
+                            item-title="name" 
+                            item-value="id"
+                            placeholder="Pilih Kandang Tersedia..."
+                            variant="outlined"
+                            density="compact"
+                            :rules="[v => !!v || 'Kandang wajib dipilih']"
+                            :loading="loadingKandangs"
+                            no-data-text="Tidak ada kandang tersedia"
+                        />
+                    </VCol>
+                </VRow>
+              </VExpandTransition>
+              
+              <div class="mb-6">
+                <label class="text-caption font-weight-bold text-medium-emphasis mb-1 d-block">Tanggal Order</label>
+                <VTextField
+                  v-model="formData.registration_date"
+                  type="date"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                />
+              </div>
+
+              <VBtn 
+                block 
+                color="primary" 
+                size="large" 
+                type="submit" 
+                :loading="isSubmittingReg"
+                elevation="2"
+                class="mt-auto"
+              >
+                Proses & Masuk Keranjang
+                <VIcon end icon="mdi-arrow-right" />
+              </VBtn>
+
+            </VForm>
+          </div>
+        </VCard>
+      </VCol>
+
+      <VCol cols="12" md="8" lg="8" class="d-flex flex-column h-100">
+        <VCard class="flex-grow-1 d-flex flex-column flex-md-row overflow-hidden position-relative" elevation="2">
+          
+          <div 
+            class="d-flex flex-column transition-all"
+            :style="{ width: (isCartVisible && $vuetify.display.mdAndUp) ? '65%' : '100%' }"
           >
-            <VListItemTitle class="font-weight-bold">{{ item.name }}</VListItemTitle>
-            <VListItemSubtitle>{{ formatCurrency(item.price) }}</VListItemSubtitle>
+            <div class="d-flex align-center pa-3 gap-2 bg-white border-b">
+              <VSelect
+                v-model="prodActiveCategory"
+                :items="categories"
+                item-title="name" item-value="id"
+                placeholder="Kategori"
+                density="compact" variant="outlined"
+                hide-details style="max-width: 150px;"
+                bg-color="grey-lighten-5"
+              />
+              <VTextField
+                v-model="prodSearch"
+                density="compact" placeholder="Scan Barcode / Cari Produk..."
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined" hide-details
+                bg-color="grey-lighten-5"
+                clearable
+              />
+              <VBtn 
+                v-if="!isCartVisible && cart.length > 0"
+                icon="mdi-cart" color="primary" variant="flat" 
+                @click="isCartVisible = true"
+              >
+                <VBadge :content="cartTotalItems" color="error"><VIcon icon="mdi-cart" /></VBadge>
+              </VBtn>
+            </div>
 
-            <template #append>
-              <div class="d-flex align-center">
-                <VBtn icon="mdi-minus" size="x-small" variant="text" @click="updateQuantity(item.id, -1)" />
-                <span class="mx-2">{{ item.quantity }}</span>
-                <VBtn icon="mdi-plus" size="x-small" variant="text" @click="updateQuantity(item.id, 1)" />
+            <div class="flex-grow-1 overflow-y-auto pa-3 bg-grey-lighten-5">
+              <div v-if="prodLoading" class="d-flex justify-center py-10">
+                <VProgressCircular indeterminate color="primary" />
               </div>
-            </template>
-          </VListItem>
-        </VList>
-        <VDivider />
-        <VCardText>
-          <div class="d-flex justify-space-between mb-2">
-            <span>Items</span>
-            <span>{{ cartTotalItems }}</span>
-          </div>
-          <div class="d-flex justify-space-between text-h6 font-weight-bold">
-            <span>Total</span>
-            <span>{{ formatCurrency(cartTotalPrice) }}</span>
-          </div>
-        </VCardText>
-        <VCardActions class="pa-4">
-          <VBtn block color="primary" variant="flat" @click="isCheckoutModalVisible = true">Next</VBtn>
-        </VCardActions>
-      </VCard>
-    </VCol>
+              
+              <div v-else-if="products.length === 0" class="d-flex flex-column align-center justify-center h-100 text-grey">
+                 <VIcon icon="mdi-package-variant" size="64" class="mb-2 opacity-50"/>
+                 <span>Produk tidak ditemukan di cabang ini</span>
+              </div>
 
-    <CheckoutModal
-      v-model="isCheckoutModalVisible"
-      :cart="cart"
-      @checkout-complete="handleCheckoutComplete"
+              <VRow v-else>
+                <VCol 
+                  v-for="product in products" :key="product.id" 
+                  cols="6" :md="isCartVisible ? 4 : 3" :lg="isCartVisible ? 4 : 3" :xl="isCartVisible ? 3 : 2"
+                >
+                  <VCard 
+                    @click="addProductToCart(product)" 
+                    class="product-card h-100 d-flex flex-column"
+                    hover border flat
+                  >
+                    <div class="img-container bg-white position-relative">
+                       <VImg :src="product.image_url || 'https://placehold.co/200x200/f5f5f5/cccccc?text=No+Img'" height="120" cover />
+                       <VChip 
+                        size="x-small" 
+                        class="stock-chip font-weight-bold" 
+                        :color="getProductStock(product) > 0 ? 'success' : 'error'"
+                        variant="flat"
+                       >
+                        Stok: {{ getProductStock(product) }}
+                      </VChip>
+                    </div>
+                    <div class="pa-2 d-flex flex-column flex-grow-1">
+                      <div class="text-caption font-weight-bold mb-1 text-truncate-2" style="min-height: 32px;">
+                        {{ product.name }}
+                      </div>
+                      <VSpacer />
+                      <div class="text-primary font-weight-bold">{{ formatCurrency(getProductPrice(product)) }}</div>
+                    </div>
+                  </VCard>
+                </VCol>
+              </VRow>
+            </div>
+          </div>
+
+          <div 
+            v-if="isCartVisible"
+            class="d-flex flex-column border-s bg-white transition-slide cart-container" 
+          >
+            <div class="pa-3 border-b d-flex align-center bg-grey-lighten-4">
+              <VIcon icon="mdi-cart-outline" color="primary" class="me-2" />
+              <span class="text-subtitle-1 font-weight-bold">Keranjang Belanja</span>
+              <VSpacer />
+              <VBtn icon="mdi-close" variant="text" size="small" color="grey" @click="isCartVisible = false" />
+            </div>
+
+            <div class="flex-grow-1 overflow-y-auto pa-2">
+              <div v-if="cart.length === 0" class="text-center py-10 text-grey">
+                <VIcon icon="mdi-basket-remove-outline" size="50" class="mb-2 opacity-50" />
+                <p class="text-caption">Keranjang kosong</p>
+              </div>
+
+              <VList v-else lines="two" density="compact" class="cart-list">
+                <VListItem 
+                  v-for="item in cart" :key="item.id" 
+                  class="mb-2 rounded border bg-grey-lighten-5 pa-2"
+                >
+                  <template #prepend>
+                    <VAvatar rounded size="40" :color="item.is_service ? 'purple-lighten-5' : 'white'" class="border">
+                      <VIcon v-if="item.is_service" icon="mdi-doctor" color="purple" size="24" />
+                      <VImg v-else :src="item.image_url || 'https://placehold.co/50'" cover />
+                    </VAvatar>
+                  </template>
+
+                  <VListItemTitle class="font-weight-bold text-caption mb-1 text-truncate">
+                    {{ item.name }}
+                  </VListItemTitle>
+                  <VListItemSubtitle class="d-flex justify-space-between align-center">
+                    <span class="text-primary font-weight-bold text-caption">
+                      {{ formatCurrency(item.price * item.quantity) }}
+                    </span>
+                  </VListItemSubtitle>
+
+                  <div class="d-flex align-center mt-2 justify-end gap-2">
+                    <template v-if="!item.is_service">
+                        <VBtn icon="mdi-minus" size="x-small" variant="tonal" density="compact" @click="updateQty(item.id, -1)" />
+                        <span class="text-caption font-weight-medium px-2">{{ item.quantity }}</span>
+                        <VBtn icon="mdi-plus" size="x-small" variant="tonal" density="compact" color="primary" @click="updateQty(item.id, 1)" />
+                    </template>
+                    <template v-else>
+                        <VChip size="x-small" color="purple" variant="flat" label>Jasa</VChip>
+                    </template>
+                    <VBtn icon="mdi-trash-can-outline" size="x-small" variant="text" color="error" @click="removeFromCart(item.id)" />
+                  </div>
+                </VListItem>
+              </VList>
+            </div>
+
+            <div class="pa-3 border-t bg-grey-lighten-4">
+              <div class="d-flex justify-space-between text-caption mb-1">
+                <span>Total Item</span>
+                <span>{{ cartTotalItems }}</span>
+              </div>
+              <div class="d-flex justify-space-between align-center mb-3">
+                <span class="text-h6 font-weight-bold">Total Bayar</span>
+                <span class="text-h6 font-weight-bold text-primary">{{ formatCurrency(cartTotalPrice) }}</span>
+              </div>
+              <div class="d-flex gap-2">
+                  <VBtn color="error" variant="tonal" icon="mdi-delete" @click="clearCart" :disabled="cart.length === 0" />
+                  <VBtn class="flex-grow-1" color="primary" size="large" :disabled="cart.length === 0" @click="isCheckoutVisible = true" elevation="2">
+                    BAYAR SEKARANG
+                  </VBtn>
+              </div>
+            </div>
+          </div>
+        </VCard>
+      </VCol>
+    </VRow>
+
+    <CheckoutModal 
+      v-model="isCheckoutVisible" 
+      :cart="cart" 
+      @checkout-complete="handleCheckoutComplete" 
     />
-
-    <VSnackbar
-      v-model="snackbar.show"
-      :timeout="snackbar.timeout"
-      :color="snackbar.color"
-      location="top right"
-    >
-      {{ snackbar.message }}
+    
+    <VSnackbar v-model="snackbar.show" :color="snackbar.color" location="top" timeout="3000">
+        {{ snackbar.msg }}
     </VSnackbar>
-  </VRow>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import axios from '@/plugins/axios';
-import CheckoutModal from './checkoutModal.vue';
-import { useRoute, useRouter } from 'vue-router';
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import axios from '@/plugins/axios'; // Pastikan path axios benar
+import CheckoutModal from './checkoutModal.vue'; // Asumsi file modal ada di folder yang sama
+import type { VForm } from 'vuetify/components';
 
-// DIUBAH: Tipe 'id' sekarang bisa string atau number
-interface CartItem { id: number | string; name: string; price: number; quantity: number; image_url: string | null; stock: number; is_service?: boolean; registration_id?: number; }
-
-const products = ref<any[]>([]);
-const search = ref('');
-const loading = ref(true);
-const activeTab = ref('all');
-const categories = ref<any[]>([]);
-const cart = ref<CartItem[]>([]);
-const isCheckoutModalVisible = ref(false);
-
-const router = useRouter();
-const route = useRoute();
-
-const addedProductFeedback = ref<Record<string, boolean>>({});
-const snackbar = ref({ show: false, message: '', color: 'success', timeout: 2000 });
-
+// --- CONFIG & UTILS ---
 const getActiveBranchId = () => {
-    const activeBranchString = localStorage.getItem('activeBranch');
-    if (activeBranchString) return JSON.parse(activeBranchString).id;
-    return null;
+  // Mengambil ID cabang aktif dari LocalStorage (diset saat login)
+  const activeBranchString = localStorage.getItem('activeBranch');
+  if (activeBranchString) {
+      try {
+          return JSON.parse(activeBranchString).id;
+      } catch (e) { return null; }
+  }
+  return null;
 }
 
-const cartTotalItems = computed(() => cart.value.reduce((total, item) => total + item.quantity, 0));
-const cartTotalPrice = computed(() => cart.value.reduce((total, item) => total + (item.price * item.quantity), 0));
+const formatCurrency = (val: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val || 0);
 
-const showSnackbar = (message: string, color: string = 'success') => {
-  snackbar.value.message = message;
-  snackbar.value.color = color;
-  snackbar.value.show = true;
-};
+const snackbar = ref({ show: false, msg: '', color: 'success' });
+const showMsg = (msg: string, color = 'success') => { snackbar.value = { show: true, msg, color }; };
 
-const addToCart = (product: any, isService: boolean = false, regId?: number) => {
-  const price = isService ? product.price : getProductPrice(product);
-  const stock = isService ? 999 : getProductStock(product);
-  const id = isService ? `service-${regId}` : product.id;
+// --- STATE LAYOUT ---
+const isCartVisible = ref(false); 
+const isCheckoutVisible = ref(false);
 
-  const existingItem = cart.value.find(item => item.id === id);
+// --- STATE FORM REGISTRASI (KIRI) ---
+const regFormRef = ref<VForm>();
+const isSubmittingReg = ref(false);
+const loadingCustomers = ref(false);
+const loadingPets = ref(false);
+const loadingKandangs = ref(false);
 
-  if (existingItem) {
-    if (existingItem.quantity < stock) {
-      existingItem.quantity++;
-      showSnackbar(`Ditambahkan: ${product.name} (+1)`, 'success');
-    } else {
-      showSnackbar('Stok tidak mencukupi!', 'warning');
+const serviceList = ref<any[]>([]);
+const customerList = ref<any[]>([]);
+const petList = ref<any[]>([]);
+const availableKandangs = ref<any[]>([]);
+
+const formData = ref({
+    service: null as any, 
+    customer_id: null as number | null,
+    pet_id: null as number | null,
+    registration_date: new Date().toISOString().substr(0, 10), 
+    start_date: new Date().toISOString().substr(0, 10),
+    end_date: null as string | null,
+    kandang_id: null as number | null,
+});
+
+// --- COMPUTED & RULES ---
+const isHotelServiceSelected = computed(() => {
+    return formData.value.service?.name?.toLowerCase().includes('hotel') ?? false;
+});
+
+const endDateRules = computed(() => {
+    const rules: ((v: any) => true | string)[] = [
+            (v: any) => !!v || 'Check-out wajib diisi'
+    ];
+    if (formData.value.start_date) {
+        rules.push((v: string) => v > formData.value.start_date || 'Harus setelah Check-in');
     }
-  } else {
-    if (stock > 0) {
-      cart.value.push({
-        id: id,
-        name: product.name,
-        price: price,
-        quantity: 1,
-        image_url: isService ? null : product.image_url,
-        stock: stock,
-        is_service: isService,
-        registration_id: regId
-      });
-      showSnackbar(`Ditambahkan: ${product.name}`, 'success');
-    } else {
-      showSnackbar('Produk habis!', 'error');
-    }
-  }
-};
+    return rules;
+});
 
-const handleAddToCart = (product: any) => {
-  addToCart(product);
-  addedProductFeedback.value[String(product.id)] = true;
-  setTimeout(() => {
-    addedProductFeedback.value[String(product.id)] = false;
-  }, 500);
-};
+// --- STATE POS (KANAN) ---
+const products = ref<any[]>([]);
+const categories = ref([{ id: 'all', name: 'Semua' }]);
+const prodLoading = ref(false);
+const prodSearch = ref('');
+const prodActiveCategory = ref('all');
+let searchTimeout: any;
 
-const updateQuantity = (productId: number | string, amount: number) => {
-  const item = cart.value.find(i => i.id === productId);
-  if (!item) return;
-  const newQuantity = item.quantity + amount;
-  if (newQuantity <= 0) {
-    cart.value = cart.value.filter(i => i.id !== productId);
-    showSnackbar(`${item.name} dihapus dari keranjang.`, 'info');
-  } else if (newQuantity <= item.stock) {
-    item.quantity = newQuantity;
-  } else {
-    showSnackbar('Stok tidak mencukupi!', 'warning');
-  }
-};
+// --- STATE CART ---
+const cart = ref<any[]>([]);
+const cartTotalItems = computed(() => cart.value.reduce((acc, item) => acc + item.quantity, 0));
+const cartTotalPrice = computed(() => cart.value.reduce((acc, item) => acc + (item.price * item.quantity), 0));
 
-const clearCart = () => {
-  cart.value = [];
-  showSnackbar('Keranjang belanja telah dikosongkan.', 'info');
-};
+// ================= METHODS API =================
 
-const categoryItems = computed(() => [ { id: 'all', name: 'Semua Kategori' }, ...categories.value ]);
-const getProductDetail = (product: any) => (product.details && product.details.length > 0) ? product.details[0] : { sales_price: 0, current_stock: 0 };
-const getProductPrice = (product: any) => getProductDetail(product).sales_price;
-const getProductStock = (product: any) => getProductDetail(product).current_stock;
-const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
-
+// 1. Load Data Produk (Dengan filter Cabang)
 const fetchProducts = async () => {
   const branchId = getActiveBranchId();
-  if (!branchId) return;
-  loading.value = true;
+  if (!branchId) {
+      showMsg('Cabang tidak terdeteksi. Silakan login ulang.', 'error');
+      return;
+  }
+  
+  prodLoading.value = true;
   try {
-    const params: any = { search: search.value, per_page: 50, branches_id: branchId };
-    if (activeTab.value !== 'all') params.category_id = activeTab.value;
+    // PENTING: Parameter branches_id dikirim agar backend memfilter stok yang sesuai
+    const params: any = { 
+        search: prodSearch.value, 
+        per_page: 20, 
+        branches_id: branchId 
+    };
+    
+    if (prodActiveCategory.value !== 'all') params.category_id = prodActiveCategory.value;
+    
     const { data } = await axios.get('/api/products', { params });
+    // Asumsi response Laravel: { data: { data: [...] } }
     products.value = data.data.data;
-  } catch (error) { console.error('Gagal mengambil data produk:', error); } 
-  finally { loading.value = false; }
+  } catch (e) { 
+      console.error(e); 
+      showMsg('Gagal memuat produk', 'error');
+  } finally { 
+      prodLoading.value = false; 
+  }
 };
 
 const fetchCategories = async () => {
   try {
     const { data } = await axios.get('/api/categories?all=true');
-    if (data && data.data) {
-        categories.value = data.data.data || data.data;
-    }
-  } catch (error) { console.error('Gagal mengambil kategori:', error); }
+    categories.value = [{id: 'all', name: 'Semua'}, ...data.data.data];
+  } catch (e) {}
 };
 
-const loadBranchData = () => {
-  const branchId = getActiveBranchId();
-  if (!branchId) {
-    alert('Cabang aktif tidak ditemukan.');
-    products.value = [];
-    return;
+const fetchServices = async () => {
+    try {
+        const { data } = await axios.get('/api/services?all=true');
+        if (data && data.data) { serviceList.value = data.data; }
+    } catch (error) { console.error('Gagal ambil layanan', error); }
+};
+
+const fetchCustomers = async () => {
+    const branchId = getActiveBranchId();
+    if (!branchId) return;
+    loadingCustomers.value = true;
+    try {
+        const { data } = await axios.get('/api/customers', {
+            params: { all: true, branches_id: branchId }
+        });
+        
+        const rawCustomers = data.data.data || [];
+        customerList.value = rawCustomers.map((c: any) => ({
+            ...c,
+            display_name_phone: `${c.name} (${c.phone || 'No HP'})` 
+        }));
+
+    } catch (error) { console.error('Gagal ambil customer', error); } 
+    finally { loadingCustomers.value = false; }
+};
+
+const fetchPetsForCustomer = async (customerId: number | null) => {
+    if (!customerId) {
+        petList.value = [];
+        formData.value.pet_id = null;
+        return;
+    }
+    loadingPets.value = true;
+    try {
+        const { data } = await axios.get(`/api/customers/${customerId}/pets`); 
+        petList.value = data.data;
+        formData.value.pet_id = null; 
+    } catch (error) { console.error('Gagal ambil hewan', error); } 
+    finally { loadingPets.value = false; }
+}
+
+const fetchActiveKandangs = async () => { // <--- PERUBAHAN NAMA FUNGSI
+    formData.value.kandang_id = null; 
+    availableKandangs.value = []; 
+    const branchId = getActiveBranchId();
+    
+    if (!isHotelServiceSelected.value || !branchId) {
+        return;
+    }
+    
+    loadingKandangs.value = true;
+    try {
+        const { data } = await axios.get('/api/kandangs/active-list', { 
+            params: { branches_id: branchId }
+        });
+        
+        availableKandangs.value = data.data || []; 
+        
+    } catch (e) {
+        console.error('Gagal ambil daftar kandang:', e);
+    } finally {
+        loadingKandangs.value = false;
+    }
+}
+
+const fetchAvailableKandangs = async () => {
+    formData.value.kandang_id = null; 
+    availableKandangs.value = []; 
+    const branchId = getActiveBranchId();
+    
+    if (!isHotelServiceSelected.value || !branchId || !formData.value.start_date || !formData.value.end_date) {
+        return;
+    }
+
+    if (formData.value.start_date >= formData.value.end_date) return;
+    
+    loadingKandangs.value = true;
+    try {
+        const { data } = await axios.get('/api/kandangs/availability', {
+            params: {
+                branches_id: branchId,
+                start_date: formData.value.start_date,
+                end_date: formData.value.end_date,
+            }
+        });
+        
+        availableKandangs.value = data.data || [];
+        if (availableKandangs.value.length === 0) {
+             showMsg('Tidak ada kandang tersedia untuk tanggal ini.', 'warning');
+        }
+        
+    } catch (e) {
+        console.error('Gagal cek kandang:', e);
+    } finally {
+        loadingKandangs.value = false;
+    }
+}
+
+const handleServiceChange = () => {
+    formData.value.end_date = null;
+    formData.value.kandang_id = null;
+    if (isHotelServiceSelected.value) {
+        fetchActiveKandangs(); 
+    } else {
+        availableKandangs.value = [];
+    }
+}
+
+// 2. LOGIC SUBMIT REGISTRASI
+const submitRegistration = async () => {
+    const { valid } = await regFormRef.value!.validate();
+    if (!valid) return;
+
+    const selectedService = formData.value.service; 
+    const branchId = getActiveBranchId();
+
+    if (!branchId) { showMsg('Cabang tidak valid', 'error'); return; }
+
+    isSubmittingReg.value = true;
+    try {
+        if (isHotelServiceSelected.value && !formData.value.kandang_id) { 
+            showMsg('Kandang wajib dipilih.', 'warning'); 
+            isSubmittingReg.value = false; 
+            return; 
+        }
+
+        const payload: any = {
+            registration_type: selectedService.name, 
+            service_id: selectedService.id,
+            customer_id: formData.value.customer_id,
+            pet_id: formData.value.pet_id,
+            registration_date: formData.value.registration_date,
+            status: 'Terjadwal',
+            branches_id: branchId
+        };
+        
+        if (isHotelServiceSelected.value) {
+            payload.start_date = formData.value.start_date;
+            payload.end_date = formData.value.end_date;
+            payload.kandang_id = formData.value.kandang_id;
+        }
+
+        // Kirim ke Backend
+        const { data: regData } = await axios.post('/api/registrations', payload);
+        const newReg = regData.data; 
+
+        // Buat item untuk Cart
+        const customer = customerList.value.find(c => c.id === formData.value.customer_id);
+        let cartItemName = `Jasa: ${selectedService.name} (${customer?.name || 'Client'})`;
+        
+        let finalPrice = selectedService.price;
+        let qty = 1;
+
+        // Jika Hotel, hitung durasi hari
+        if (isHotelServiceSelected.value) {
+             const days = Math.ceil((new Date(formData.value.end_date!).getTime() - new Date(formData.value.start_date!).getTime()) / (1000 * 3600 * 24));
+             cartItemName += ` - ${days} Hari`;
+             finalPrice = selectedService.price * days; // Harga total jasa hotel
+        }
+
+        const cartItem = {
+            id: `service-${newReg.id}`,
+            name: cartItemName,
+            price: finalPrice,
+            quantity: qty,
+            image_url: null,
+            is_service: true,
+            registration_id: newReg.id
+        };
+        
+        cart.value.push(cartItem);
+        isCartVisible.value = true; 
+        showMsg('Registrasi berhasil! Layanan ditambahkan ke keranjang.', 'success');
+
+        // Reset Form
+        resetForm();
+
+    } catch (e: any) { 
+        console.error(e);
+        const errorMsg = e.response?.data?.message || 'Gagal memproses registrasi';
+        showMsg(errorMsg, 'error'); 
+    } finally { 
+        isSubmittingReg.value = false; 
+    }
+}
+
+const resetForm = () => {
+    formData.value = { 
+        service: null, customer_id: null, pet_id: null, 
+        registration_date: new Date().toISOString().substr(0, 10),
+        start_date: new Date().toISOString().substr(0, 10),
+        end_date: null, kandang_id: null
+    };
+    petList.value = [];
+    availableKandangs.value = [];
+    regFormRef.value?.resetValidation();
+}
+
+// 3. LOGIC CART & PRODUCT HELPER
+// Mengambil stok dari array details (sesuai perbaikan backend sebelumnya)
+const getProductStock = (p: any) => {
+    if (p.details && p.details.length > 0) {
+        return p.details[0].current_stock;
+    }
+    return 0;
+};
+
+const getProductPrice = (p: any) => {
+    if (p.details && p.details.length > 0) {
+        return p.details[0].sales_price;
+    }
+    return 0;
+};
+
+const addProductToCart = (product: any) => {
+  const stock = getProductStock(product);
+  if (stock <= 0) { showMsg('Stok Habis di cabang ini!', 'error'); return; }
+  
+  const price = getProductPrice(product);
+  
+  // Cari item di cart
+  const existing = cart.value.find(i => i.id === product.id && !i.is_service);
+  
+  if (existing) {
+    if (existing.quantity < stock) existing.quantity++;
+    else showMsg(`Stok hanya tersedia ${stock}`, 'warning');
+  } else {
+    cart.value.push({
+      id: product.id, 
+      name: product.name,
+      price: price, 
+      quantity: 1,
+      image_url: product.image_url, 
+      stock: stock, 
+      is_service: false
+    });
   }
+  isCartVisible.value = true;
+};
+
+const updateQty = (id: any, amount: number) => {
+  const idx = cart.value.findIndex(i => i.id === id);
+  if (idx === -1) return;
+  const item = cart.value[idx];
+  
+  // Jangan ubah qty jika itu jasa/layanan (biasanya fixed 1 per reg)
+  if (item.is_service) return;
+
+  const newQty = item.quantity + amount;
+
+  if (newQty <= 0) {
+      cart.value.splice(idx, 1);
+      if(cart.value.length === 0) isCartVisible.value = false;
+  } else {
+      if (newQty > item.stock) { showMsg(`Stok maksimum ${item.stock}`, 'warning'); return; }
+      item.quantity = newQty;
+  }
+};
+
+const removeFromCart = (id: any) => {
+  cart.value = cart.value.filter(i => i.id !== id);
+  if(cart.value.length === 0) isCartVisible.value = false;
+};
+
+const clearCart = () => { cart.value = []; isCartVisible.value = false; };
+
+const handleCheckoutComplete = () => {
+  clearCart();
+  isCheckoutVisible.value = false;
+  showMsg('Transaksi Pembayaran Berhasil', 'success');
+  // Refresh data produk untuk update stok terbaru
   fetchProducts();
 };
 
-const handleCheckoutComplete = () => {
-    const registrationIdsToUpdate = cart.value
-        .filter(item => item.is_service && item.registration_id)
-        .map(item => item.registration_id);
-
-    if (registrationIdsToUpdate.length > 0) {
-        registrationIdsToUpdate.forEach(id => {
-            axios.patch(`/api/registrations/${id}/status`, { status: 'Selesai' });
-        });
-    }
-    clearCart();
-}
-
-// productView.vue
-
-const fetchAndAddRegistrationsToCart = async (encodedIds: string) => {
-  try {
-    const { data } = await axios.get('/api/registrations/details', {
-      params: { ids: encodedIds }
-    });
-
-    if (data && data.data && data.data.length > 0) {
-      data.data.forEach((reg: any) => {
-        if (reg.service) {
-          addToCart(reg.service, true, reg.id);
-        }
-      });
-      showSnackbar(`${data.data.length} layanan berhasil ditambahkan ke keranjang.`, 'success');
-
-      await nextTick();
-
-      router.replace({ query: {} });
-    }
-  } catch (error) {
-    console.error("Gagal mengambil detail registrasi:", error);
-    router.replace({ query: {} });
-  } 
-};
-
+// 4. LIFECYCLE
 onMounted(() => {
-  if (route.query.registrations && typeof route.query.registrations === 'string') {
-    fetchAndAddRegistrationsToCart(route.query.registrations);
-  }
-  fetchCategories();
-  loadBranchData();
-  window.addEventListener('branch-changed', loadBranchData);
+  fetchCategories(); 
+  fetchProducts(); 
+  fetchServices(); 
+  fetchCustomers();
+  
+  // Listener custom jika ada mekanisme ganti cabang global
+  window.addEventListener('branch-changed', () => { 
+      fetchProducts(); 
+      fetchCustomers(); 
+      cart.value = []; // Kosongkan cart saat ganti cabang
+  });
 });
 
-onUnmounted(() => {
-  window.removeEventListener('branch-changed', loadBranchData);
+onUnmounted(() => window.removeEventListener('branch-changed', () => {}));
+
+// Watcher untuk pencarian produk
+watch([prodSearch, prodActiveCategory], () => { 
+    clearTimeout(searchTimeout); 
+    searchTimeout = setTimeout(fetchProducts, 500); 
 });
-
-// DIUBAH: Watcher sekarang memiliki 'immediate: true' dan menggantikan logika di onMounted
-// watch(() => route.query.registrations, (newRegistrations) => {
-//     if (newRegistrations && typeof newRegistrations === 'string') {
-//         fetchAndAddRegistrationsToCart(newRegistrations);
-//     }
-// }, { immediate: true });
-
-let searchTimeout: number;
-watch([search, activeTab], () => {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => fetchProducts(), 500);
-});
-
 </script>
 
 <style scoped>
-.product-card { 
-  transition: all 0.2s ease-in-out; 
-  border-radius: 12px; 
-  overflow: hidden; 
-  cursor: pointer; 
-  position: relative;
-}
-.product-card:hover { 
-  transform: translateY(-4px); 
-  box-shadow: 0 8px 25px rgba(0,0,0,0.1); 
-}
-.card-visual-wrapper { position: relative; }
-.stock-chip { position: absolute; top: 12px; right: 12px; z-index: 2; }
-.product-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Mengatur tinggi agar pas satu layar tanpa scroll window */
+.fill-height { height: calc(100vh - 64px); overflow: hidden; }
+.match-height { height: 100%; }
+.v-col { height: 100%; } 
+.v-card { height: 100%; } 
 
-.added-feedback-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  z-index: 1;
-  opacity: 0;
-  animation: fadeInOut 0.5s forwards;
-  pointer-events: none;
-}
+/* Animasi dan Gaya Kartu */
+.transition-all { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.stock-chip { position: absolute; top: 8px; right: 8px; z-index: 2; }
+.product-card { cursor: pointer; transition: transform 0.2s; overflow: hidden; }
+.product-card:hover { transform: translateY(-4px); border-color: var(--v-theme-primary); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 
-@keyframes fadeInOut {
-  0% { opacity: 0; }
-  20% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { opacity: 0; }
+/* Scrollbar Custom */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Responsive Cart */
+.cart-container { width: 100%; }
+@media (min-width: 960px) { 
+    .cart-container { width: 35%; min-width: 320px; max-width: 400px; }
 }
 </style>
-

@@ -86,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue' // DIUBAH: Tambahkan onMounted & onUnmounted
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue' 
 import axios from '@/plugins/axios'
 import type { VForm } from 'vuetify/components'
 
@@ -116,6 +116,7 @@ const editedItem = ref({
   kode_room: '',
   quota: 1,
   status: 'Aktif',
+  flag_deleted: false // Tambahkan flag_deleted
 })
 const defaultItem = { ...editedItem.value }
 const formTitle = computed(() => (editedIndex.value === -1 ? 'Tambah Kandang Baru' : 'Edit Data Kandang'))
@@ -148,8 +149,8 @@ const fetchKandangs = async () => {
         branches_id: branchId, 
       },
     })
-    kandangs.value = data.data.data; // Sesuaikan jika struktur response berbeda
-    totalKandangs.value = data.data.total; // Sesuaikan jika struktur response berbeda
+    kandangs.value = data.data.data; 
+    totalKandangs.value = data.data.total; 
   } catch (error) {
     console.error('Gagal mengambil data kandang:', error)
   } finally {
@@ -157,7 +158,7 @@ const fetchKandangs = async () => {
   }
 }
 
-// DIUBAH: Tambahkan listener untuk reaktivitas
+// DITAMBAHKAN: Listener untuk reaktivitas
 onMounted(() => {
     fetchKandangs();
     window.addEventListener('branch-changed', fetchKandangs);
@@ -197,7 +198,7 @@ const save = async () => {
   const branchId = getActiveBranchId();
   if (!branchId) return;
 
-  // DIUBAH: Tambahkan branches_id ke payload saat menyimpan
+  // Tambahkan branches_id ke payload saat menyimpan
   const payload = {
     ...editedItem.value,
     branches_id: branchId,
@@ -223,6 +224,7 @@ const deleteItem = async (item: any) => {
   if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
     loading.value = true
     try {
+      // Hanya kirim ID ke backend, logika soft delete ada di controller
       await axios.delete(`/api/kandangs/${item.id}`)
       fetchKandangs()
     } catch (error) {

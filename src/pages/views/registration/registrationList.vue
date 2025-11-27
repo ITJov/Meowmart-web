@@ -3,21 +3,6 @@
     <VCardTitle class="d-flex align-center pa-4">
       <span class="text-h5">Tabel Registrasi</span>
       <VSpacer />
-      <!-- DITAMBAHKAN: Tombol "Bayar Sekaligus" yang hanya muncul di tab Pembayaran -->
-      <VBtn
-        v-if="activeTab === 'Pembayaran'"
-        color="success"
-        class="me-2"
-        @click="payMultiple"
-        :disabled="selectedItems.length === 0"
-      >
-        <VIcon icon="mdi-cash-multiple" start />
-        Bayar Sekaligus
-      </VBtn>
-      <VBtn color="primary" @click="goToCreatePage">
-        <VIcon icon="mdi-plus" start />
-        Tambah Data
-      </VBtn>
     </VCardTitle>
 
     <VCardText>
@@ -35,7 +20,7 @@
         </VRow>
     </VCardText>
 
-    <VTabs v-model="activeTab" class="px-4">
+    <VTabs v-model="activeTab" class="px-4" color="primary">
       <VTab
         v-for="tab in tabItems"
         :key="tab.value"
@@ -65,49 +50,37 @@
       <template #[`item.status`]="{ item }">
         <VChip :color="getStatusColor(item.status)" size="small">{{ item.status }}</VChip>
       </template>
+      
       <template #[`item.actions`]="{ item }">
         <VMenu location="bottom end">
           <template #activator="{ props }">
             <VBtn icon="mdi-dots-vertical" v-bind="props" variant="text" />
           </template>
           <VList density="compact">
+            
             <VListItem link>
               <VListItemTitle>
                 <VIcon icon="mdi-pencil" start /> Edit
               </VListItemTitle>
             </VListItem>
-            
-            <VListItem v-if="item.status === 'Terjadwal'" link @click="updateStatus(item, 'Menunggu Antrian')">
-              <VListItemTitle>
-                <VIcon icon="mdi-account-clock" start /> Pindahkan ke Antrian
+
+            <VListItem v-if="item.status === 'Terjadwal'" link @click="goToPayment(item)">
+              <VListItemTitle class="text-success font-weight-bold">
+                <VIcon icon="mdi-cart-arrow-right" start /> SUDAH DIKERJAKAN
               </VListItemTitle>
             </VListItem>
 
-            <VListItem v-if="item.status === 'Menunggu Antrian'" link @click="updateStatus(item, 'Dalam Tindakan')">
-              <VListItemTitle>
-                <VIcon icon="mdi-play-circle" start /> Mulai Tindakan
+            <VListItem
+              v-if="item.status !== 'Selesai' && item.status !== 'Batal'"
+              link
+              @click="updateStatus(item, 'Batal')"
+            >
+              <VListItemTitle class="text-error">
+                <VIcon icon="mdi-cancel" start />
+                Batalkan Layanan
               </VListItemTitle>
             </VListItem>
             
-            <!-- DIUBAH: Aksi untuk mengirim ke pembayaran -->
-            <VListItem v-if="item.status === 'Dalam Tindakan'" link @click="updateStatus(item, 'Pembayaran')">
-              <VListItemTitle>
-                <VIcon icon="mdi-cash-register" start /> Kirim ke Pembayaran
-              </VListItemTitle>
-            </VListItem>
-            
-            <!-- DITAMBAHKAN: Aksi khusus di tab Pembayaran -->
-            <VListItem v-if="item.status === 'Pembayaran'" link @click="goToPayment(item)">
-              <VListItemTitle class="text-success">
-                <VIcon icon="mdi-cart-arrow-right" start /> Bayar
-              </VListItemTitle>
-            </VListItem>
-
-            <VListItem v-if="item.status === 'Pembayaran'" link @click="updateStatus(item, 'Selesai')">
-              <VListItemTitle>
-                <VIcon icon="mdi-check-circle" start /> Tandai Selesai (Tanpa POS)
-              </VListItemTitle>
-            </VListItem>
           </VList>
         </VMenu>
       </template>
@@ -127,6 +100,11 @@ interface Registration {
   created_at: string;
   status: string;
   customer: { name: string; } | null;
+  service?: {
+    id: number;
+    name: string;
+    price: number;
+  };
 }
 
 const router = useRouter();
@@ -136,14 +114,10 @@ const activeTab = ref('Terjadwal');
 const registrations = ref<Registration[]>([]);
 const totalRegistrations = ref(0);
 const options = ref({ page: 1, itemsPerPage: 10 });
-const selectedItems = ref<number[]>([]); // Untuk menampung ID item yang dipilih
+const selectedItems = ref<number[]>([]);
 
-// DIUBAH: Tambahkan status "Pembayaran" dan sesuaikan urutan
 const tabItems = ref([
     { title: 'Terjadwal', value: 'Terjadwal', count: 0 },
-    { title: 'Menunggu Antrian', value: 'Menunggu Antrian', count: 0 },
-    { title: 'Dalam Tindakan', value: 'Dalam Tindakan', count: 0 },
-    { title: 'Pembayaran', value: 'Pembayaran', count: 0 },
     { title: 'Selesai', value: 'Selesai', count: 0 },
     { title: 'Batal', value: 'Batal', count: 0 },
 ]);
@@ -168,7 +142,7 @@ const fetchRegistrations = async () => {
   if (!branchId) return;
 
   loading.value = true;
-  selectedItems.value = []; // Reset pilihan setiap kali data di-load
+  selectedItems.value = []; 
   try {
     const { data } = await axios.get('/api/registrations', {
       params: {
@@ -177,6 +151,7 @@ const fetchRegistrations = async () => {
         search: search.value,
         status: activeTab.value,
         branches_id: branchId,
+        with: 'customer,service',
       },
     });
     registrations.value = data.data.data;
@@ -195,8 +170,11 @@ const fetchRegistrationCounts = async () => {
         const { data } = await axios.get('/api/registrations/counts', {
             params: { branches_id: branchId }
         });
+        
         tabItems.value.forEach(tab => {
             tab.count = data.data[tab.value] || 0;
+            
+            // NOTE: Menghapus logika penggabungan count dari 'Menunggu Pembayaran'
         });
     } catch (error) {
         console.error('Gagal mengambil jumlah registrasi:', error);
@@ -213,40 +191,42 @@ const updateStatus = async (item: Registration, newStatus: string) => {
 
     loading.value = true;
     try {
+        // Perubahan status ini hanya digunakan untuk aksi Batal.
         await axios.patch(`/api/registrations/${item.id}/status`, { status: newStatus });
-        loadBranchData();
+        loadBranchData(); // Muat ulang data setelah berhasil
     } catch (error) {
         console.error('Gagal mengubah status:', error);
-        alert('Terjadi kesalahan saat mengubah status.');
+        alert('Terjadi kesalahan saat mengubah status.'); 
         loading.value = false;
     }
 }
 
-// DITAMBAHKAN: Fungsi untuk redirect ke halaman POS
-const goToPayment = (item: Registration) => {
-    const registrationIds = [item.id];
-    const encodedIds = JSON.stringify(registrationIds);
-    router.push({ name: 'products-management', query: { registrations: encodedIds } });
-}
-
-// DITAMBAHKAN: Fungsi untuk bayar beberapa item sekaligus
-const payMultiple = () => {
-    if (selectedItems.value.length === 0) {
-        alert('Silakan pilih minimal satu item untuk dibayar.');
-        return;
+const goToPayment = async (item: Registration) => {
+    if (!confirm('Apakah layanan ini sudah selesai dikerjakan dan pembayaran sudah diterima? Aksi ini akan menandai status registrasi sebagai "Selesai".')) return;
+    
+    loading.value = true;
+    try {
+        await axios.patch(`/api/registrations/${item.id}/status`, { status: 'Selesai' });
+        
+        activeTab.value = 'Selesai';
+        loadBranchData();
+        
+    } catch (error) {
+        console.error('Gagal menandai selesai:', error);
+        alert('Terjadi kesalahan saat mengubah status.');
+    } finally {
+        loading.value = false;
     }
-    const encodedIds = JSON.stringify(selectedItems.value);
-    router.push({ name: 'products-management', query: { registrations: encodedIds } });
 }
 
-// DITAMBAHKAN: Warna untuk status Pembayaran
+const payMultiple = () => {
+    alert('Fungsi ini dinonaktifkan.');
+}
+
 const getStatusColor = (status: string) => {
     if (status === 'Terjadwal') return 'blue';
-    if (status === 'Menunggu Antrian') return 'orange';
-    if (status === 'Dalam Tindakan') return 'purple';
-    if (status === 'Pembayaran') return 'info'; // Warna baru
     if (status === 'Batal') return 'error';
-    return 'success'; 
+    return 'success'; // Untuk 'Selesai'
 }
 
 const goToCreatePage = () => {
@@ -267,4 +247,3 @@ onUnmounted(() => {
     window.removeEventListener('branch-changed', loadBranchData);
 });
 </script>
-

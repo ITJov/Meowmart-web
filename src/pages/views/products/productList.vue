@@ -63,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'; // DIUBAH: Tambahkan onUnmounted
+import { ref, watch, onMounted, onUnmounted } from 'vue'; 
 import { useRouter } from 'vue-router';
 import axios from '@/plugins/axios';
 
@@ -97,11 +97,13 @@ const getActiveBranchId = () => {
     return null;
 }
 
-// Helpers (tidak ada perubahan)
+// Helpers (DIPERKUAT: Penanganan jika details adalah null/undefined)
 const getProductDetail = (product: any) => {
-    if (product.details && product.details.length > 0) {
+    // Memastikan product.details ada dan merupakan array sebelum mengakses [0]
+    if (product.details && Array.isArray(product.details) && product.details.length > 0) {
         return product.details[0];
     }
+    // Mengembalikan objek default jika detail tidak ditemukan
     return { sales_price: 0, purchase_price: 0, current_stock: 0 };
 }
 const getProductPrice = (product: any) => getProductDetail(product).sales_price;
@@ -120,7 +122,7 @@ const fetchProducts = async () => {
   // DITAMBAHKAN: Ambil ID cabang sebelum melakukan fetch
   const branchId = getActiveBranchId();
   if (!branchId) {
-    alert('Cabang aktif tidak ditemukan. Silakan pilih cabang di navbar.');
+    console.error('Cabang aktif tidak ditemukan.'); // Ganti alert agar tidak memblokir
     products.value = []; // Kosongkan tabel jika tidak ada cabang
     totalProducts.value = 0;
     return;
@@ -136,8 +138,19 @@ const fetchProducts = async () => {
         branches_id: branchId, // DIUBAH: Kirim ID cabang ke backend
       },
     });
-    products.value = data.data.data;
-    totalProducts.value = data.data.total;
+    // Menambahkan logging data yang diterima
+    console.log('Data Produk Diterima:', data); 
+    
+    if (data && data.data && Array.isArray(data.data.data)) {
+        products.value = data.data.data;
+        totalProducts.value = data.data.total;
+    } else {
+        // Jika API mengembalikan 200 OK tetapi data kosong atau struktur salah
+        console.warn('Struktur data produk tidak sesuai atau kosong:', data);
+        products.value = [];
+        totalProducts.value = 0;
+    }
+
   } catch (error) {
     console.error('Gagal mengambil data produk:', error);
   } finally {
@@ -179,4 +192,3 @@ watch(search, () => {
   fetchProducts();
 });
 </script>
-
