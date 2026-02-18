@@ -11,9 +11,9 @@ MeowMart Web adalah sistem manajemen petshop berbasis web yang dikembangkan untu
 
 📌 Fitur Utama
 
-🛒 Point of Sale (POS)
-📦 Manajemen Produk
-🔄 Transfer Stok Antar Cabang
-👤 Registrasi Customer oleh Admin
-📑 Laporan Sederhana
-📊 Dashboard Ringkasan Penjualan
+- 🛒 Point of Sale (POS)
+- 📦 Manajemen Produk
+- 🔄 Transfer Stok Antar Cabang
+- 👤 Registrasi Customer oleh Admin
+- 📑 Laporan Sederhana
+- 📊 Dashboard Ringkasan Penjualan
