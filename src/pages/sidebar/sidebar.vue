@@ -144,6 +144,7 @@ const menuItems = ref<MenuItem[]>([
   { title: 'Management Data', isSubheader: true },
   // Master Data yang tidak boleh diubah Kasir
   { title: 'Hewan', icon: 'mdi-dog', to: '/pets', roles: ['super-admin', 'admin-cabang', 'kasir'] }, // PERBAIKAN: Tambah Kasir
+  { title: 'Tipe Hewan', icon: 'mdi-dog', to: '/pet-type', roles: ['super-admin', 'admin-cabang', 'kasir'] }, // PERBAIKAN: Tambah Kasir
   { title: 'Kandang', icon: 'mdi-kennel', to: '/kandangs', roles: ['super-admin', 'admin-cabang', 'kasir'] }, // PERBAIKAN: Tambah Kasir
   { title: 'Data Pengguna', icon: 'mdi-account-group-outline', to: '/customers', roles: ['super-admin', 'admin-cabang', 'kasir'] }, 
   { title: 'Pelayanan', icon: 'mdi-cut', to: '/service', roles: ['super-admin', 'admin-cabang'] },
@@ -172,11 +173,12 @@ const menuItems = ref<MenuItem[]>([
   { title: 'Laporan', icon: 'mdi-file-chart-outline', 
     roles: ['super-admin', 'admin-cabang'], 
     children: [
-      { title: 'Untung & Rugi', icon: 'mdi-chart-line', to: '/laporan/untung-rugi', roles: ['super-admin', 'admin-cabang'] },
+      // { title: 'Untung & Rugi', icon: 'mdi-chart-line', to: '/laporan/untung-rugi', roles: ['super-admin', 'admin-cabang'] },
       { title: 'Pembayaran', icon: 'mdi-cash-multiple', to: '/laporan/pembayaran', roles: ['super-admin', 'admin-cabang'] },
       { title: 'Minimum Stok', icon: 'mdi-archive-alert-outline', to: '/laporan/minimum-stock', roles: ['super-admin', 'admin-cabang'] },
       { title: 'Rekap Penjualan', icon: 'mdi-chart-bar', to: '/laporan/penjualan', roles: ['super-admin', 'admin-cabang'] },
       { title: 'Penjualan by produk', icon: 'mdi-package-variant-closed', to: '/laporan/penjualan-by-product', roles: ['super-admin', 'admin-cabang'] },
+      { title: 'Penjualan by service', icon: 'mdi-package-variant-closed', to: '/laporan/penjualan-by-service', roles: ['super-admin', 'admin-cabang'] },
       { title: 'Rekap Stok', icon: 'mdi-warehouse', to: '/laporan/rekap-stok', roles: ['super-admin', 'admin-cabang'] },
     ],
    },

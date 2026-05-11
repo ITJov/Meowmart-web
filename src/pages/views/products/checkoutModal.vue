@@ -6,7 +6,6 @@
     persistent
   >
     <VCard :loading="isProcessing">
-      <!-- Tampilan Langkah 1: Data Pelanggan (Tidak Berubah) -->
       <div v-if="checkoutStep === 1">
         <VCardTitle class="d-flex align-center pa-4">
           <span>Data Pelanggan</span>
@@ -39,30 +38,34 @@
         </VCardActions>
       </div>
 
-      <!-- Tampilan Langkah 2: Pembayaran -->
       <div v-if="checkoutStep === 2">
-        <VCardTitle class="d-flex align-center pa-4"><span>Pembayaran</span></VCardTitle>
+        <VCardTitle class="d-flex align-center pa-4">
+          <span>Pembayaran</span>
+          <VSpacer />
+          <VBtn icon="mdi-close" variant="text" size="small" @click="closeModal" />
+        </VCardTitle>
         <VDivider />
         <VCardText>
           <div class="d-flex justify-space-between mb-2">
             <span class="text-medium-emphasis">Customer</span>
             <span class="font-weight-medium">{{ selectedCustomer?.name }}</span>
           </div>
-          <div class="d-flex justify-space-between mb-2">
-            <span class="text-medium-emphasis">Subtotal</span>
-            <span class="font-weight-medium">{{ formatCurrency(cartSubtotal) }}</span>
+
+          <div class="d-flex justify-space-between text-h6 font-weight-bold my-4 pa-3 bg-primary-lighten-5 rounded border-dashed">
+            <span>Grand Total (Inc. Tax)</span>
+            <span>{{ formatCurrency(grandTotal) }}</span>
           </div>
-          <VDivider class="my-3" />
 
           <VRow>
             <VCol cols="12">
                 <VSelect
                     v-model="selectedDiscount"
                     :items="availableDiscounts"
-                    label="Pilih Diskon Tersedia"
+                    label="Gunakan Diskon/Kupon"
                     item-title="name"
                     return-object
-                    variant="outlined" density="compact"
+                    variant="outlined" 
+                    density="compact"
                     clearable
                 >
                     <template #item="{ props, item }">
@@ -81,52 +84,44 @@
                 </div>
             </VCol>
 
-            <VCol cols="12">
-                <VSelect
-                    v-model="selectedTax"
-                    :items="availableTaxes"
-                    label="Pilih Jenis Pajak"
-                    item-title="name"
-                    return-object
-                    variant="outlined" density="compact"
-                    clearable
-                >
-                    <template #item="{ props, item }">
-                        <VListItem v-bind="props">
-                            <VListItemTitle>{{ item.raw.name }} ({{ item.raw.rate }}%)</VListItemTitle>
-                        </VListItem>
-                    </template>
-                </VSelect>
-            </VCol>
-            
             <VCol cols="12" md="6">
                 <VTextField
                     :model-value="formatCurrency(calculatedDiscount)"
                     label="Potongan Diskon"
-                    variant="outlined"
+                    variant="filled"
                     density="compact"
                     readonly
                     prefix="Rp"
+                    color="error"
                 />
             </VCol>
+            
             <VCol cols="12" md="6">
                  <VTextField
                     :model-value="formatCurrency(calculatedTax)"
-                    label="Pajak Terhitung"
-                    variant="outlined"
+                    label="PPN Terkandung (11%)"
+                    variant="filled"
                     density="compact"
                     readonly
                     prefix="Rp"
+                    messages="Pajak sudah otomatis termasuk dalam harga"
                 />
             </VCol>
           </VRow>
           
-          <div class="d-flex justify-space-between text-h6 font-weight-bold my-4 pa-2 bg-grey-lighten-4 rounded">
-            <span>Grand Total</span>
-            <span>{{ formatCurrency(grandTotal) }}</span>
-          </div>
+          <VDivider class="my-4" />
 
-          <VSelect v-model="paymentMethod" label="Metode Pembayaran" :items="paymentModes" item-title="name" item-value="name" variant="outlined" density="compact" class="mb-4" />
+          <VSelect 
+            v-model="paymentMethod" 
+            label="Metode Pembayaran" 
+            :items="paymentModes" 
+            item-title="name" 
+            item-value="name" 
+            variant="outlined" 
+            density="compact" 
+            class="mb-4" 
+          />
+          
           <VTextField
             v-model.number="amountPaid"
             label="Jumlah Bayar"
@@ -134,12 +129,16 @@
             variant="outlined"
             density="compact"
             prefix="Rp"
+            class="text-h6"
             autofocus
             @keyup.enter="processPayment"
           />
+
           <div class="d-flex justify-space-between text-h6 font-weight-bold mt-4">
             <span>Kembalian</span>
-            <span :class="changeAmount < 0 ? 'text-error' : 'text-success'">{{ formatCurrency(changeAmount) }}</span>
+            <span :class="changeAmount < 0 ? 'text-error' : 'text-success'">
+              {{ formatCurrency(changeAmount) }}
+            </span>
           </div>
 
         </VCardText>
@@ -192,28 +191,24 @@ import axios from '@/plugins/axios';
 import type { VForm } from 'vuetify/components';
 
 // --- INTERFACE ---
-interface CartItem { id: number | string; name: string; price: number; quantity: number; is_service?: boolean; registration_id?: number; }
+interface CartItem { id: number | string; name: string; price: number; quantity: number; is_service?: boolean; registration_id?: number;unique_item_id?: number | null; }
 interface Customer { id: number; name: string; }
 interface PaymentMode { id: number; name: string; }
-
-// --- UTILITY STATE ---
-const snackbar = ref({ show: false, msg: '', color: 'success', timeout: 3000 });
-const showMsg = (msg: string, color = 'success') => { 
-  snackbar.value = { show: true, msg, color, timeout: 3000 }; 
-};
 
 // --- PROPS & EMITS ---
 const props = defineProps<{ modelValue: boolean; cart: CartItem[]; }>();
 const emit = defineEmits(['update:modelValue', 'checkout-complete']);
 
-// --- CHECKOUT STATE ---
+// --- CONSTANTS ---
+const DEFAULT_TAX_NAME = 'PPN'; // Nama pajak yang akan otomatis dipilih
+
+// --- STATE ---
 const checkoutStep = ref(1);
 const customers = ref<Customer[]>([]);
 const loadingCustomers = ref(false);
 const selectedCustomer = ref<Customer | null>(null);
 const isProcessing = ref(false);
 
-// --- DISKON & PAJAK STATE ---
 const availableDiscounts = ref<any[]>([]); 
 const selectedDiscount = ref<any>(null); 
 const availableTaxes = ref<any[]>([]); 
@@ -228,40 +223,45 @@ const refNewCustomerForm = ref<VForm>();
 const newCustomer = ref({ name: '', email: '', phone: '', address: '', password: '' });
 const defaultNewCustomer = { ...newCustomer.value };
 
-// --- COMPUTED VALUES ---
+// --- PERHITUNGAN (LOGIKA INKLUSIF) ---
+
+// 1. Subtotal dari keranjang
 const cartSubtotal = computed(() => props.cart.reduce((total, item) => total + (item.price * item.quantity), 0));
 
+// 2. Potongan Diskon (Dihitung dari subtotal inklusif)
 const calculatedDiscount = computed(() => {
     const d = selectedDiscount.value;
-    // Jika tidak ada diskon dipilih atau subtotal kurang dari minimal bayar, diskon = 0
     if (!d || cartSubtotal.value < d.min_payment_amount) return 0;
     
     const value = parseFloat(d.discount_value);
-    
     if (d.discount_type === 'percentage') {
         return Math.round(cartSubtotal.value * value);
     }
     return value;
 });
 
-// === COMPUTED PROPERTY BARU UNTUK VALIDASI TOMBOL ===
+// Validasi minimal bayar untuk diskon
 const isDiscountInvalid = computed(() => {
     const d = selectedDiscount.value;
-    // Diskon tidak valid jika diskon sudah dipilih TAPI nilai diskon yang dihitung adalah nol
-    // Ini terjadi jika subtotal < min_payment_amount
-    return d !== null && calculatedDiscount.value === 0;
+    return d !== null && cartSubtotal.value < d.min_payment_amount;
 });
-// ===================================================
 
+// 3. Pajak Inklusif (Rumus: Harga - (Harga / (1 + Rate)))
+// 
 const calculatedTax = computed(() => {
     if (!selectedTax.value) return 0;
     const rate = parseFloat(selectedTax.value.rate) / 100;
-    return Math.round(cartSubtotal.value * rate);
+    // Menghitung porsi pajak yang sudah ada di dalam harga
+    return Math.round(cartSubtotal.value - (cartSubtotal.value / (1 + rate)));
 });
 
-const grandTotal = computed(() => (cartSubtotal.value - calculatedDiscount.value) + calculatedTax.value);
+// 4. Grand Total (Harga sudah termasuk pajak, hanya dikurangi diskon)
+const grandTotal = computed(() => cartSubtotal.value - calculatedDiscount.value);
+
+// 5. Kembalian
 const changeAmount = computed(() => (amountPaid.value || 0) - grandTotal.value);
 
+// --- METHODS ---
 
 const getActiveBranchId = () => {
     const activeBranchString = localStorage.getItem('activeBranch');
@@ -281,107 +281,63 @@ const closeModal = () => {
 };
 
 const goToStepTwo = () => {
-  // Isi Jumlah Bayar default dengan Grand Total
   amountPaid.value = grandTotal.value;
   checkoutStep.value = 2;
 }
 
 // --- FETCH DATA ---
-const fetchAvailableDiscounts = async () => {
-    const branchId = getActiveBranchId();
-    if (!branchId) return;
-
-    try {
-        const { data } = await axios.get('/api/discounts', { params: { active: true, branches_id: branchId } });
-        availableDiscounts.value = data.data.data || []; 
-    } catch (error) {
-        console.error('Gagal mengambil daftar diskon:', error);
-    }
-}
 
 const fetchAvailableTaxes = async () => {
     try {
         const { data } = await axios.get('/api/taxes');
         availableTaxes.value = data.data || []; 
+        
+        // OTOMATIS PILIH PPN jika tersedia
+        if (availableTaxes.value.length > 0) {
+            const autoTax = availableTaxes.value.find(t => t.name.includes(DEFAULT_TAX_NAME));
+            selectedTax.value = autoTax || availableTaxes.value[0];
+        }
     } catch (error) {
         console.error('Gagal mengambil daftar pajak:', error);
     }
 }
 
+const fetchAvailableDiscounts = async () => {
+    const branchId = getActiveBranchId();
+    if (!branchId) return;
+    try {
+        const { data } = await axios.get('/api/discounts', { params: { active: true, branches_id: branchId } });
+        availableDiscounts.value = data.data.data || []; 
+    } catch (error) { console.error(error); }
+}
+
 const fetchCustomers = async () => {
   const branchId = getActiveBranchId();
-  if (!branchId) {
-    customers.value = [];
-    return;
-  }
+  if (!branchId) return;
   loadingCustomers.value = true;
   try {
     const { data } = await axios.get('/api/customers', { params: { all: true, branches_id: branchId } });
-    if (data && data.data && Array.isArray(data.data.data)) {
-      customers.value = data.data.data;
-    } else {
-      customers.value = [];
-    }
-  } catch (error) {
-    console.error('Gagal mengambil data pelanggan:', error);
-    customers.value = [];
-  } finally {
-    loadingCustomers.value = false;
-  }
+    customers.value = data.data.data || [];
+  } catch (error) { console.error(error); } finally { loadingCustomers.value = false; }
 };
 
 const fetchPaymentModes = async () => {
   try {
     const { data } = await axios.get('/api/payment-modes');
-    if (data && data.data) {
-      paymentModes.value = data.data;
-    }
-  } catch (error) {
-    console.error("Gagal mengambil metode pembayaran:", error);
-    paymentModes.value = [{id: 1, name: 'Cash'}, {id: 2, name: 'QRIS'}, {id: 3, name: 'Debit'}];
-  }
+    paymentModes.value = data.data || [];
+  } catch (error) { console.error(error); }
 };
 
 // --- PROCESS PAYMENT ---
+
 const processPayment = async () => {
   const branchId = getActiveBranchId();
-  if (!branchId || !selectedCustomer.value) {
-    alert("Data tidak lengkap.");
-    return;
-  }
+  if (!branchId || !selectedCustomer.value) return;
+  
   if (amountPaid.value < grandTotal.value) {
-    alert("Jumlah bayar kurang dari total.");
+    alert("Jumlah bayar kurang.");
     return;
   }
-  
-  // LOGIKA PEMBLOKIRAN FRONTEND TAMBAHAN
-  if (isDiscountInvalid.value) {
-       alert("Diskon tidak dapat digunakan karena syarat minimum pembayaran belum terpenuhi.");
-       return;
-  }
-
-  // === LOGIKA PERINGATAN DISKON/PAJAK BARU ===
-  const hasCartItems = props.cart.length > 0;
-  const isDiscountMissing = selectedDiscount.value === null;
-  const isTaxMissing = selectedTax.value === null;
-  
-  if (hasCartItems && (isDiscountMissing || isTaxMissing)) {
-    let warningMessage = "PERINGATAN! Transaksi ini berjalan ";
-
-    if (isTaxMissing) {
-        warningMessage += "TANPA MEMILIH PAJAK ";
-    }
-    if (isDiscountMissing) {
-        warningMessage += (isTaxMissing ? "dan " : "") + "TANPA MEMILIH DISKON/KUPON";
-    }
-    
-    warningMessage += "\n\nApakah Anda yakin ingin melanjutkan?";
-    
-    if (!window.confirm(warningMessage)) {
-        return;
-    }
-  }
-  // === AKHIR LOGIKA PERINGATAN ===
 
   isProcessing.value = true;
   try {
@@ -396,8 +352,9 @@ const processPayment = async () => {
       total_tax: calculatedTax.value, 
       
       cart: props.cart.map(item => ({ 
-          id: String(item.id), 
+          id: item.is_service ? item.registration_id : item.id, 
           registration_id: item.registration_id || null, 
+          unique_item_id: item.unique_item_id || null, 
           is_service: !!item.is_service,
           name: item.name,
           quantity: item.quantity, 
@@ -405,22 +362,17 @@ const processPayment = async () => {
       })),
       subtotal: cartSubtotal.value,
       total: grandTotal.value, 
-      // === PERBAIKAN: TAMBAHKAN FIELD PAID_AMOUNT KE PAYLOAD ===
       paid_amount: amountPaid.value,
-      // ========================================================
+      tax_type: 'inclusive' // Memberi tahu backend bahwa pajak sudah inklusif
     };
     
     await axios.post('/api/payments', payload);
-
-    showMsg(`Pembayaran berhasil! Kembalian: ${formatCurrency(changeAmount.value)}`, 'success');
     emit('checkout-complete');
-    
-    setTimeout(closeModal, 1000); 
+    setTimeout(closeModal, 500); 
 
   } catch (error: any) {
-    console.error('Gagal memproses pembayaran:', error);
-    const errorMessage = error.response?.data?.error || error.response?.data?.message || "Terjadi kesalahan.";
-    alert(`Error: ${errorMessage}`);
+    console.error(error);
+    alert("Gagal memproses pembayaran.");
   } finally {
     isProcessing.value = false;
   }
@@ -432,21 +384,15 @@ const saveNewCustomer = async () => {
   const { valid } = await refNewCustomerForm.value!.validate();
   if (!valid) return;
   const branchId = getActiveBranchId();
-  if (!branchId) {
-    alert("Cabang aktif tidak ditemukan, gagal menyimpan pelanggan.");
-    return;
-  }
-  const payload = { ...newCustomer.value, branches_id: branchId, };
   try {
-    const { data } = await axios.post('/api/customers', payload);
+    const { data } = await axios.post('/api/customers', { ...newCustomer.value, branches_id: branchId });
     await fetchCustomers();
     selectedCustomer.value = data.data;
     closeNewCustomerDialog();
-  } catch (error) { console.error('Gagal menyimpan customer baru:', error); }
+  } catch (error) { console.error(error); }
 };
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
-
 
 watch(() => props.modelValue, (newValue) => {
   if (newValue) {

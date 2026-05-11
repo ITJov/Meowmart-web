@@ -70,8 +70,7 @@
             variant="flat" 
             color="success"
             @click="handleCheckout(item)"
-            :disabled="item.status?.toLowerCase() === 'selesai'"
-          >
+            :disabled="isCheckoutDisabled(item)">
              Check-out
           </VBtn>
         </div>
@@ -132,14 +131,15 @@ const fetchPetHotelData = async () => {
         per_page: options.value.itemsPerPage,
         search: search.value,
         branches_id: branchId,
-        registration_type: 'Pet Hotel', // Filter untuk jenis layanan hotel
+        registration_type: 'Pet Hotel', 
+        // 🚀 PASTIKAN INI DIKIRIM KE BACKEND
+        exclude_statuses: ['Selesai', 'Batal'], 
       },
     });
     
     if (data && data.data) {
-      // Filter data yang belum selesai di frontend untuk tampilan aktif
-      petHotelList.value = data.data.data.filter((item: any) => item.status?.toLowerCase() !== 'selesai' && item.status?.toLowerCase() !== 'batal');
-      totalItems.value = data.data.total;
+      petHotelList.value = data.data.data; 
+      totalItems.value = data.data.total; 
     }
   } catch (error) {
     console.error('Gagal mengambil data Pet Hotel:', error);
@@ -153,13 +153,55 @@ const getStatusColor = (status: string) => {
     const lowerStatus = status?.toLowerCase() || '';
     if (lowerStatus === 'terjadwal') return 'blue';
     if (lowerStatus === 'batal') return 'error';
-    if (lowerStatus === 'menunggu pembayaran') return 'info';
-    return 'success'; // Untuk 'Selesai'
+    if (lowerStatus === 'check-in') return 'success'; // Status baru
+    return 'grey'; 
 }
+
+const normalizeDate = (dateString: string) => {
+    // Memastikan waktu diset ke tengah malam untuk perbandingan tanggal yang akurat
+    return new Date(dateString.split('T')[0]); 
+};
+const getTodayDateString = () => {
+    return new Date().toISOString().split('T')[0];
+};
+
+const isCheckoutDisabled = (item: any) => {
+    const status = item.status?.toLowerCase();
+    
+    // Nonaktif jika sudah Selesai atau Batal (walaupun seharusnya sudah difilter di backend)
+    if (status === 'selesai' || status === 'batal') {
+        return true;
+    }
+
+    const endDate = item.end_date;
+    if (!endDate) {
+        return true; 
+    }
+    
+    try {
+        const todayDate = normalizeDate(new Date().toISOString()); 
+        const checkOutDate = normalizeDate(endDate); 
+
+        // Tombol DISABLED JIKA hari ini < tanggal check-out
+        // Ini memastikan tombol hanya aktif JIKA (todayDate >= checkOutDate)
+        return todayDate.getTime() < checkOutDate.getTime();
+        
+    } catch (e) {
+        console.error("Gagal membandingkan tanggal:", e);
+        return true;
+    }
+};
 
 // --- FUNGSI CHECKOUT ---
 const handleCheckout = async (item: any) => {
   const petName = item.pet?.name || 'hewan ini';
+  
+  // 🚀 Tambahkan pemeriksaan status tambahan untuk mencegah check-out item terjadwal yang belum tiba
+  if (isCheckoutDisabled(item)) {
+      alert(`Layanan ${petName} belum tiba waktunya Check-out (${formatDate(item.end_date)}).`);
+      return;
+  }
+  
   if (!confirm(`Apakah Anda yakin ingin check-out ${petName}? Aksi ini akan menandai layanan sebagai "Selesai" di sistem.`)) return;
 
   loading.value = true;

@@ -9,15 +9,12 @@
       </VBtn>
     </VCardTitle>
 
-    <!-- === FILTER === -->
     <VCardText>
       <VRow>
-        <!-- Filter Cabang -->
         <VCol cols="12" md="4">
           <VSelect
             v-model="filters.branches_id"
-            :items="branchList"
-            item-title="name"
+            :items="branchListWithAll" item-title="name"
             item-value="id"
             label="Pilih Cabang"
             variant="outlined"
@@ -26,7 +23,6 @@
             clearable
           />
         </VCol>
-        <!-- Filter Search -->
         <VCol cols="12" md="4">
           <VTextField
             v-model="filters.search"
@@ -38,12 +34,10 @@
             clearable
           />
         </VCol>
-        <!-- Tombol Terapkan -->
         <VCol cols="12" md="4">
           <VBtn 
             @click="() => { options.page = 1; fetchReport(); }" 
-            :disabled="!filters.branches_id || loading" 
-            :loading="loading"
+            :disabled="!isFilterValid || loading" :loading="loading"
             color="primary"
             block
           >
@@ -53,25 +47,21 @@
       </VRow>
     </VCardText>
 
-    <!-- === TABEL DATA === -->
     <VDataTableServer
       v-model:items-per-page="options.itemsPerPage"
       v-model:page="options.page"
-      :headers="headers"
-      :items="stockList"
+      :headers="headers" :items="stockList"
       :items-length="totalItems"
       :loading="loading"
       class="text-no-wrap"
       @update:options="fetchReport"
     >
-      <!-- Kustomisasi Tampilan Kolom -->
       <template #[`item.product_name`]="{ item }">
         {{ item.product?.name || 'N/A' }}
       </template>
 
-      <!-- Variasi bisa diisi data lain jika ada -->
-      <template #[`item.variant`]="{ item }">
-        {{ item.product?.variant || '-' }}
+      <template v-if="filters.branches_id === 0" #[`item.branch_name`]="{ item }">
+        {{ item.branch?.name || 'N/A' }}
       </template>
       
       <template #[`item.current_stock`]="{ item }">
@@ -84,10 +74,9 @@
         {{ item.stock_alert }}
       </template>
 
-      <!-- Pesan jika tidak ada data -->
       <template #no-data>
         <div class="text-center py-4">
-          Tidak ada produk yang perlu di-restock untuk cabang ini.
+          Tidak ada produk yang perlu di-restock untuk filter yang dipilih.
         </div>
       </template>
     </VDataTableServer>
@@ -97,7 +86,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import axios from '@/plugins/axios'; // Pastikan path axios Anda benar
+import axios from '@/plugins/axios'; 
 
 // --- State ---
 const loading = ref(false);
@@ -109,34 +98,61 @@ const options = ref({
   itemsPerPage: 10,
 });
 const filters = ref({
-  branches_id: null as number | null,
+  branches_id: 0 as number | null, // Default ke 0 (Semua Cabang)
   search: '',
 });
 
-// --- Headers Tabel ---
-const headers = [
+// --- Computed ---
+
+// **PERUBAHAN 1: Daftar Cabang + Opsi Semua Cabang**
+const branchListWithAll = computed(() => {
+  return [
+    { id: 0, name: 'Semua Cabang' },
+    ...branchList.value,
+  ];
+});
+
+// **PERUBAHAN 2: Validasi Filter**
+// Cukup memastikan branches_id tidak null, yang mana akan default ke 0.
+const isFilterValid = computed(() => {
+  return filters.value.branches_id !== null;
+});
+
+// **PERUBAHAN 3: Headers Tabel Dinamis**
+const staticHeaders = [
   { title: 'NAMA PRODUK', key: 'product_name', sortable: false },
-  // { title: 'NAMA VARIAN', key: 'variant', sortable: false }, // Hapus jika tidak ada
   { title: 'STOK SAAT INI', key: 'current_stock' },
   { title: 'PENGINGAT STOK', key: 'stock_alert' },
-] as const;
+];
+
+const headers = computed(() => {
+    let finalHeaders = [...staticHeaders];
+    
+    if (filters.value.branches_id === 0) {
+        // Sisipkan header cabang setelah Nama Produk
+        finalHeaders.splice(1, 0, { title: 'CABANG', key: 'branch_name', sortable: false });
+    }
+    return finalHeaders;
+});
 
 // --- API Calls ---
 
-// 1. Ambil daftar cabang untuk filter
 const fetchBranches = async () => {
   try {
     const { data } = await axios.get('/api/branches', { params: { all: true } });
     branchList.value = data.data.data || data.data; 
+    
+    // Set default ke 0 jika belum ada yang terpilih
+    if (filters.value.branches_id === null) {
+      filters.value.branches_id = 0;
+    }
   } catch (error) {
     console.error('Gagal mengambil daftar cabang:', error);
   }
 };
 
-// 2. Ambil data laporan utama
 const fetchReport = async () => {
-  if (!filters.value.branches_id) {
-    // Jangan fetch jika cabang belum dipilih
+  if (!isFilterValid.value) { // Gunakan isFilterValid
     stockList.value = [];
     totalItems.value = 0;
     return;
@@ -145,17 +161,21 @@ const fetchReport = async () => {
   loading.value = true;
   
   try {
+    // **PERUBAHAN 4: Pastikan branches_id terkirim sebagai 0 jika null/tidak dipilih**
+    const paramsToSend = {
+      ...filters.value, 
+      page: options.value.page,
+      per_page: options.value.itemsPerPage,
+      branches_id: filters.value.branches_id || 0,
+    };
+
     const { data } = await axios.get('/api/reports/minimum-stock', {
-      params: {
-        ...filters.value, // Kirim semua filter
-        page: options.value.page,
-        per_page: options.value.itemsPerPage,
-      },
+      params: paramsToSend,
     });
 
     if (data.success && data.data) {
-      stockList.value = data.data.data; // Data dari paginator
-      totalItems.value = data.data.total; // Total item dari paginator
+      stockList.value = data.data.data; 
+      totalItems.value = data.data.total; 
     }
   } catch (error: any) {
     console.error('Gagal mengambil data laporan:', error);
@@ -165,29 +185,76 @@ const fetchReport = async () => {
   }
 };
 
-// Fungsi untuk tombol download (placeholder)
-const downloadReport = () => {
-  alert('Fungsi download belum diimplementasikan.');
+const downloadReport = async () => {
+  if (!isFilterValid.value) {
+    alert('Silakan pilih cabang atau "Semua Cabang" untuk mengunduh laporan.');
+    return;
+  }
+
+  loading.value = true;
+  try {
+    // **PERUBAHAN 5: Pastikan branches_id terkirim sebagai 0 jika null/tidak dipilih**
+    const paramsToSend = {
+      ...filters.value, 
+      branches_id: filters.value.branches_id || 0,
+    };
+    
+    const response = await axios.get('/api/reports/minimum-stock/download', {
+      params: paramsToSend, 
+      responseType: 'blob', 
+    });
+
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `Laporan_Stok_Minimum_${paramsToSend.branches_id}.xlsx`; 
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch && filenameMatch.length > 1) {
+        filename = filenameMatch[1];
+      }
+    }
+
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+    alert(`Laporan "${filename}" berhasil diunduh!`);
+  } catch (error: any) {
+    console.error('Gagal mengunduh laporan:', error);
+    alert(`Terjadi kesalahan saat mengunduh: ${error.message}`);
+  } finally {
+    loading.value = false;
+  }
 };
+
 
 // --- Lifecycle ---
 onMounted(() => {
   fetchBranches();
   
-  // Cek cabang aktif dari localStorage
   const activeBranchString = localStorage.getItem('activeBranch');
+  let branchIdFromLocalStorage: number | null = null;
+  
   if (activeBranchString) {
     try {
       const activeBranch = JSON.parse(activeBranchString);
       if (activeBranch && activeBranch.id) {
-        filters.value.branches_id = activeBranch.id;
-        // Otomatis muat laporan untuk cabang aktif
-        fetchReport(); 
+        branchIdFromLocalStorage = activeBranch.id;
       }
     } catch(e) {
       console.error("Gagal parse activeBranch dari localStorage", e);
     }
   }
+  
+  // Gunakan ID Cabang dari Local Storage, atau 0 (Semua Cabang) jika tidak ada
+  filters.value.branches_id = branchIdFromLocalStorage || 0;
+  
+  // Otomatis muat laporan untuk cabang aktif/semua cabang
+  fetchReport(); 
 });
 
 // Watcher untuk search (debounce)
@@ -195,8 +262,8 @@ let searchTimeout: number;
 watch(() => filters.value.search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    options.value.page = 1; // Reset ke halaman 1
+    options.value.page = 1; 
     fetchReport();
-  }, 500); // Tunda 500ms
+  }, 500); 
 });
 </script>

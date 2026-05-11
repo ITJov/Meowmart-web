@@ -32,7 +32,7 @@
     <VDivider />
 
     <VDataTableServer
-      v-model="selectedItems"
+      v-model:options="options"
       show-select
       :headers="headers"
       :items="registrations"
@@ -137,12 +137,12 @@ const getActiveBranchId = () => {
     return null;
 }
 
+// Bagian fetchRegistrations di Vue Anda
 const fetchRegistrations = async () => {
   const branchId = getActiveBranchId();
   if (!branchId) return;
 
   loading.value = true;
-  selectedItems.value = []; 
   try {
     const { data } = await axios.get('/api/registrations', {
       params: {
@@ -154,10 +154,11 @@ const fetchRegistrations = async () => {
         with: 'customer,service',
       },
     });
-    registrations.value = data.data.data;
+    // Pastikan mapping datanya benar sesuai response pagination Laravel
+    registrations.value = data.data.data; 
     totalRegistrations.value = data.data.total;
   } catch (error) {
-    console.error('Gagal mengambil data registrasi:', error);
+    console.error('Gagal mengambil data:', error);
   } finally {
     loading.value = false;
   }
@@ -174,7 +175,6 @@ const fetchRegistrationCounts = async () => {
         tabItems.value.forEach(tab => {
             tab.count = data.data[tab.value] || 0;
             
-            // NOTE: Menghapus logika penggabungan count dari 'Menunggu Pembayaran'
         });
     } catch (error) {
         console.error('Gagal mengambil jumlah registrasi:', error);

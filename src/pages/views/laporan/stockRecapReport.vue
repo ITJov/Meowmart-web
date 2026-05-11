@@ -3,34 +3,35 @@
     <VCardTitle class="d-flex align-center pa-4">
       <span class="text-h5">Tabel Rekap Stok</span>
       <VSpacer />
-      <VBtn color="orange" @click="downloadReport" :disabled="loading || stockList.length === 0">
+      <VBtn 
+        color="orange" 
+        @click="downloadReport" 
+        :disabled="loading || stockList.length === 0"
+      >
         <VIcon icon="mdi-download" start />
         Download
       </VBtn>
     </VCardTitle>
 
-    <!-- === FILTER === -->
     <VCardText>
-      <VRow>
-        <!-- Filter Cabang -->
-        <VCol cols="12" md="4">
+      <VRow align="center">
+        <VCol cols="12" md="3">
           <VSelect
             v-model="filters.branches_id"
-            :items="branchList"
+            :items="branchListWithAll"
             item-title="name"
             item-value="id"
             label="Pilih Cabang"
             variant="outlined"
             density="compact"
             hide-details
-            clearable
           />
         </VCol>
-        <!-- Filter Search -->
-        <VCol cols="12" md="4">
+        
+        <VCol cols="12" md="3">
           <VTextField
             v-model="filters.search"
-            label="Cari Produk, SKU, Kategori, Brand"
+            label="Cari Produk atau SKU"
             prepend-inner-icon="mdi-magnify"
             variant="outlined"
             density="compact"
@@ -38,22 +39,45 @@
             clearable
           />
         </VCol>
-        <!-- Tombol Terapkan -->
-        <VCol cols="12" md="4">
+
+        <VCol cols="12" md="2">
+          <VSwitch
+            v-model="filters.low_stock_only"
+            label="Minim Stok"
+            color="error"
+            hide-details
+            density="compact"
+            @change="resetAndFetch"
+          />
+        </VCol>
+
+        <VCol cols="12" md="2">
+          <VSwitch
+            v-model="filters.expiring_soon"
+            label="Hampir Expired"
+            color="warning"
+            hide-details
+            density="compact"
+            @change="resetAndFetch"
+          />
+        </VCol>
+
+        <VCol cols="12" md="2">
           <VBtn 
-            @click="() => { options.page = 1; fetchReport(); }" 
-            :disabled="!filters.branches_id || loading" 
+            @click="resetAndFetch" 
+            :disabled="loading" 
             :loading="loading"
             color="primary"
             block
           >
-            Terapkan
+            Filter
           </VBtn>
         </VCol>
       </VRow>
     </VCardText>
 
-    <!-- === TABEL DATA === -->
+    <VDivider />
+
     <VDataTableServer
       v-model:items-per-page="options.itemsPerPage"
       v-model:page="options.page"
@@ -64,160 +88,208 @@
       class="text-no-wrap"
       @update:options="fetchReport"
     >
-      <!-- Kustomisasi Tampilan Kolom -->
       <template #[`item.product_name`]="{ item }">
-        {{ item.product?.name || 'N/A' }}
+        <div class="d-flex flex-column">
+          <span class="font-weight-medium">{{ item.product?.name || 'N/A' }}</span>
+          <small class="text-grey">{{ item.product?.item_code || '-' }}</small>
+        </div>
       </template>
 
-      <template #[`item.sku`]="{ item }">
-        {{ item.product?.item_code || 'N/A' }}
-      </template>
-      
-      <template #[`item.category`]="{ item }">
-        {{ item.product?.category?.name || 'N/A' }}
-      </template>
-      
-      <template #[`item.brand`]="{ item }">
-        {{ item.product?.brand?.name || 'N/A' }}
-      </template>
-
-      <template #[`item.purchase_price`]="{ item }">
-        {{ formatCurrency(item.purchase_price) }}
-      </template>
-
-      <template #[`item.current_stock`]="{ item }">
-        <VChip :color="item.current_stock > 0 ? 'success' : 'error'" variant="tonal" size="small">
-          {{ item.current_stock }} {{ item.product?.unit?.short_name || '' }}
+      <template v-if="filters.branches_id === 0" #[`item.branch_name`]="{ item }">
+        <VChip size="x-small" variant="outlined" color="secondary">
+          {{ item.branch?.name || 'N/A' }}
         </VChip>
       </template>
 
-      <!-- Pesan jika tidak ada data -->
+      <template #[`item.current_stock`]="{ item }">
+        <VChip 
+          :color="item.current_stock > (item.stock_alert || 0) ? 'success' : 'error'" 
+          variant="tonal" 
+          size="small"
+        >
+          {{ item.current_stock }} {{ item.product?.unit?.name || '' }}
+        </VChip>
+      </template>
+
+      <template #[`item.expiry_date`]="{ item }">
+        <div v-if="item.nearest_expiry">
+          <VChip 
+            size="small" 
+            :color="isNearExpiry(item.nearest_expiry) ? 'warning' : 'grey'"
+            variant="flat"
+          >
+            {{ new Date(item.nearest_expiry).toLocaleDateString('id-ID') }}
+          </VChip>
+        </div>
+        <span v-else class="text-grey">-</span>
+      </template>
+
       <template #no-data>
-        <div class="text-center py-4">
-          Tidak ada data stok yang ditemukan untuk filter yang dipilih.
+        <div class="text-center py-4 text-grey">
+          Tidak ada data stok ditemukan.
         </div>
       </template>
     </VDataTableServer>
-
   </VCard>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import axios from '@/plugins/axios'; // Pastikan path axios Anda benar
+import axios from '@/plugins/axios';
+
+// --- Interface ---
+interface DataTableHeader {
+  title: string;
+  key: string;
+  sortable?: boolean;
+  align?: 'start' | 'center' | 'end';
+}
 
 // --- State ---
 const loading = ref(false);
 const stockList = ref<any[]>([]);
 const totalItems = ref(0);
 const branchList = ref<any[]>([]);
+
 const options = ref({
   page: 1,
   itemsPerPage: 10,
 });
+
 const filters = ref({
-  branches_id: null as number | null,
+  branches_id: 0 as number | null,
   search: '',
+  low_stock_only: false,
+  expiring_soon: false, // State baru untuk filter expired
 });
 
-// --- Headers Tabel ---
-const headers = [
-  { title: 'NAMA PRODUK', key: 'product_name', sortable: false },
-  // { title: 'NAMA VARIAN', key: 'variant', sortable: false }, // Anda bisa tambahkan jika ada
-  { title: 'SKU', key: 'sku', sortable: false },
-  { title: 'KATEGORI', key: 'category', sortable: false },
-  { title: 'BRAND', key: 'brand', sortable: false },
-  { title: 'HARGA BELI', key: 'purchase_price' },
-  { title: 'STOK SAAT INI', key: 'current_stock' },
-] as const;
+// --- Computed ---
+const branchListWithAll = computed(() => [
+  { id: 0, name: 'Semua Cabang' },
+  ...branchList.value,
+]);
 
+const headers = computed((): DataTableHeader[] => {
+  const dynamicHeaders: DataTableHeader[] = [
+    { title: 'PRODUK', key: 'product_name', sortable: false },
+  ];
 
-// --- Helper Functions ---
+  if (filters.value.branches_id === 0) {
+    dynamicHeaders.push({ title: 'CABANG', key: 'branch_name', sortable: false });
+  }
+
+  dynamicHeaders.push(
+    { title: 'KATEGORI', key: 'product.category.name', sortable: false },
+    { title: 'STOK', key: 'current_stock', align: 'center' },
+    { title: 'EXP TERDEKAT', key: 'expiry_date', align: 'center' }, // Kolom baru
+    { title: 'HARGA BELI', key: 'purchase_price', align: 'end' }
+  );
+
+  return dynamicHeaders;
+});
+
+// --- Helpers ---
 const formatCurrency = (value: number) => {
-  if (value === null || value === undefined) return 'Rp 0';
   return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+    style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+  }).format(value || 0);
+};
+
+const isNearExpiry = (dateString: string) => {
+  const expDate = new Date(dateString);
+  const today = new Date();
+  const diffTime = expDate.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays <= 30; // Tandai kuning jika <= 30 hari
+};
+
+const resetAndFetch = () => {
+  options.value.page = 1;
+  fetchReport();
 };
 
 // --- API Calls ---
-
-// 1. Ambil daftar cabang untuk filter
 const fetchBranches = async () => {
   try {
     const { data } = await axios.get('/api/branches', { params: { all: true } });
-    branchList.value = data.data.data || data.data; 
+    branchList.value = data.data.data || data.data;
   } catch (error) {
     console.error('Gagal mengambil daftar cabang:', error);
   }
 };
 
-// 2. Ambil data laporan utama
 const fetchReport = async () => {
-  if (!filters.value.branches_id) {
-    stockList.value = [];
-    totalItems.value = 0;
-    return;
-  }
-  
   loading.value = true;
-  
   try {
-    const { data } = await axios.get('/api/reports/stock-recap', { // <-- URL API BARU
+    const { data } = await axios.get('/api/reports/stock-recap', {
       params: {
-        ...filters.value, // Kirim semua filter
+        branches_id: filters.value.branches_id,
+        search: filters.value.search,
+        low_stock_only: filters.value.low_stock_only ? 1 : 0,
+        expiring_soon: filters.value.expiring_soon ? 1 : 0, // Kirim ke backend
         page: options.value.page,
         per_page: options.value.itemsPerPage,
       },
     });
 
-    if (data.success && data.data) {
-      stockList.value = data.data.data; // Data dari paginator
-      totalItems.value = data.data.total; // Total item dari paginator
+    if (data.success) {
+      stockList.value = data.data.data;
+      totalItems.value = data.data.total;
     }
   } catch (error: any) {
-    console.error('Gagal mengambil data laporan:', error);
-    alert(`Terjadi kesalahan: ${error.response?.data?.message || error.message}`);
+    console.error('Fetch Error:', error);
   } finally {
     loading.value = false;
   }
 };
 
-// Fungsi untuk tombol download (placeholder)
-const downloadReport = () => {
-  alert('Fungsi download belum diimplementasikan.');
+const downloadReport = async () => {
+  loading.value = true;
+  try {
+    const response = await axios.get('/api/reports/stock-recap/download', {
+      params: {
+        ...filters.value,
+        low_stock_only: filters.value.low_stock_only ? 1 : 0,
+        expiring_soon: filters.value.expiring_soon ? 1 : 0,
+      },
+      responseType: 'blob',
+    });
+
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Rekap_Stok_${new Date().toISOString().split('T')[0]}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (error) {
+    alert('Gagal mengunduh laporan.');
+  } finally {
+    loading.value = false;
+  }
 };
 
-// --- Lifecycle ---
+// --- Lifecycle & Watcher ---
 onMounted(() => {
   fetchBranches();
   
-  // Cek cabang aktif dari localStorage
+  // Set default branch dari localStorage jika ada
   const activeBranchString = localStorage.getItem('activeBranch');
   if (activeBranchString) {
     try {
       const activeBranch = JSON.parse(activeBranchString);
-      if (activeBranch && activeBranch.id) {
-        filters.value.branches_id = activeBranch.id;
-        // Otomatis muat laporan untuk cabang aktif
-        fetchReport(); 
-      }
-    } catch(e) {
-      console.error("Gagal parse activeBranch dari localStorage", e);
-    }
+      filters.value.branches_id = activeBranch.id;
+    } catch(e) {}
   }
+  
+  fetchReport();
 });
 
-// Watcher untuk search (debounce)
-let searchTimeout: number;
+let searchTimeout: any;
 watch(() => filters.value.search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    options.value.page = 1; // Reset ke halaman 1
-    fetchReport();
-  }, 500); // Tunda 500ms
+    resetAndFetch();
+  }, 500);
 });
 </script>

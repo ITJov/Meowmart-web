@@ -9,14 +9,12 @@
       </VBtn>
     </VCardTitle>
 
-    <!-- === FILTER === -->
     <VCardText>
       <VRow>
-        <!-- Filter Cabang -->
         <VCol cols="12" md="4">
           <VSelect
             v-model="filters.branches_id"
-            :items="branchList"
+            :items="branchListWithAll"
             item-title="name"
             item-value="id"
             label="Pilih Cabang"
@@ -26,7 +24,6 @@
             clearable
           />
         </VCol>
-        <!-- Filter Tanggal Mulai -->
         <VCol cols="12" md="3">
           <VTextField
             v-model="filters.start_date"
@@ -37,7 +34,6 @@
             hide-details
           />
         </VCol>
-        <!-- Filter Tanggal Selesai -->
         <VCol cols="12" md="3">
           <VTextField
             v-model="filters.end_date"
@@ -48,7 +44,6 @@
             hide-details
           />
         </VCol>
-        <!-- Tombol Terapkan -->
         <VCol cols="12" md="2">
           <VBtn 
             @click="fetchReport" 
@@ -65,7 +60,6 @@
 
     <VDivider />
 
-    <!-- === HASIL LAPORAN === -->
     <VCardText v-if="loading">
       <VProgressLinear indeterminate color="primary" />
       <p class="text-center mt-2">Memuat data laporan...</p>
@@ -73,20 +67,56 @@
 
     <VCardText v-else-if="!reportData && !loading">
       <VAlert type="info" variant="tonal">
-        Silakan pilih cabang dan rentang tanggal, lalu tekan "Terapkan" untuk melihat laporan.
+        Silakan pilih rentang tanggal (dan opsional Cabang), lalu tekan "Terapkan" untuk melihat laporan.
       </VAlert>
     </VCardText>
 
     <VCardText v-else-if="reportData" class="pa-6">
-      <p class="text-center text-medium-emphasis mb-4">
-        Menampilkan laporan untuk periode 
-        <span class="font-weight-bold">{{ reportData.start_date }}</span> 
-        s/d 
-        <span class="font-weight-bold">{{ reportData.end_date }}</span>
-      </p>
+      <VRow v-if="reportData.report_for_all_branches && reportData.branch_details.length > 0" class="mt-6">
+        <VCol cols="12">
+          <VCard variant="tonal" color="info">
+            <VCardItem>
+              <VCardTitle>Detail Kontribusi Laba Bersih Per Cabang</VCardTitle>
+            </VCardItem>
+            <VDivider />
+            <VTable density="compact">
+              <thead>
+                <tr>
+                  <th class="text-left">Cabang</th>
+                  <th class="text-right">Pendapatan</th>
+                  <th class="text-right">HPP</th>
+                  <th class="text-right">Beban Lainnya</th>
+                  <th class="text-right">Laba Bersih</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in reportData.branch_details" :key="item.id">
+                  <td>{{ item.name }}</td>
+                  <td class="text-right text-success">{{ formatCurrency(item.revenue) }}</td>
+                  <td class="text-right text-error">({{ formatCurrency(item.cogs) }})</td>
+                  <td class="text-right text-error">({{ formatCurrency(item.expenses) }})</td>
+                  <td class="text-right font-weight-bold" :class="item.net_profit >= 0 ? 'text-success' : 'text-error'">
+                    {{ formatCurrency(item.net_profit) }}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td class="font-weight-bold">Total Global</td>
+                  <td class="text-right font-weight-bold text-success">{{ formatCurrency(reportData.total_revenue) }}</td>
+                  <td class="text-right font-weight-bold text-error">({{ formatCurrency(reportData.total_cogs) }})</td>
+                  <td class="text-right font-weight-bold text-error">({{ formatCurrency(reportData.total_expenses) }})</td>
+                  <td class="text-right font-weight-bold text-h6" :class="reportData.net_profit >= 0 ? 'text-success' : 'text-error'">
+                    {{ formatCurrency(reportData.net_profit) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </VTable>
+          </VCard>
+        </VCol>
+      </VRow>
 
       <VRow>
-        <!-- Kolom Laba Rugi -->
         <VCol cols="12" md="6">
           <VCard variant="outlined">
             <VCardItem>
@@ -133,7 +163,6 @@
           </VCard>
         </VCol>
 
-        <!-- Kolom Arus Kas -->
         <VCol cols="12" md="6">
           <VCard variant="outlined">
             <VCardItem>
@@ -183,18 +212,26 @@ const branchList = ref<any[]>([]);
 const filters = ref({
   start_date: '',
   end_date: '',
-  branches_id: null as number | null, // Tentukan tipe agar lebih jelas
+  branches_id: 0 as number | null, // Default ke 0 (Semua Cabang)
 });
 
 // --- Computed ---
-// Cek apakah filter sudah siap untuk kirim API
+
+// Tambahkan opsi "Semua Cabang" ke daftar
+const branchListWithAll = computed(() => {
+  return [
+    { id: 0, name: 'Semua Cabang' },
+    ...branchList.value,
+  ];
+});
+
+// Cek apakah filter sudah siap untuk kirim API (Hanya tanggal yang wajib)
 const isFilterValid = computed(() => {
-  return filters.value.start_date && filters.value.end_date && filters.value.branches_id;
+  return filters.value.start_date && filters.value.end_date;
 });
 
 // --- Helper Functions ---
 
-// Mengatur tanggal default (awal bulan ini dan hari ini)
 const setDefaultDates = () => {
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -204,7 +241,6 @@ const setDefaultDates = () => {
   filters.value.end_date = today.toISOString().split('T')[0];
 };
 
-// Format mata uang IDR
 const formatCurrency = (value: number) => {
   if (value === null || value === undefined) return 'Rp 0';
   return new Intl.NumberFormat('id-ID', {
@@ -217,34 +253,41 @@ const formatCurrency = (value: number) => {
 
 // --- API Calls ---
 
-// 1. Ambil daftar cabang untuk filter
 const fetchBranches = async () => {
   try {
-    // Asumsi Anda punya endpoint untuk ambil semua cabang
     const { data } = await axios.get('/api/branches', { 
-      params: { all: true } // Asumsi API-nya mendukung 'all'
+      params: { all: true }
     });
-    // Sesuaikan 'data.data' jika format API Anda berbeda
     branchList.value = data.data.data || data.data; 
+    
+    // Default filter branches_id ke 0 jika belum ada yang terpilih
+    if (filters.value.branches_id === null) {
+        filters.value.branches_id = 0;
+    }
+    
   } catch (error) {
     console.error('Gagal mengambil daftar cabang:', error);
-    alert('Gagal memuat daftar cabang. Halaman mungkin tidak berfungsi.');
   }
 };
 
-// 2. Ambil data laporan utama
 const fetchReport = async () => {
   if (!isFilterValid.value) {
-    alert('Silakan pilih cabang, tanggal mulai, dan tanggal selesai.');
+    alert('Silakan pilih tanggal mulai dan tanggal selesai.');
     return;
   }
   
   loading.value = true;
-  reportData.value = null; // Kosongkan data lama
+  reportData.value = null; 
+  
+  const paramsToSend = {
+    ...filters.value,
+    // Pastikan branches_id terkirim sebagai 0 jika null/tidak dipilih
+    branches_id: filters.value.branches_id || 0, 
+  };
   
   try {
     const { data } = await axios.get('/api/reports/profit-loss', {
-      params: filters.value, // Kirim filter ke backend
+      params: paramsToSend,
     });
 
     if (data.success && data.data) {
@@ -258,48 +301,49 @@ const fetchReport = async () => {
   }
 };
 
-// Fungsi untuk tombol download (placeholder)
 const downloadReport = async () => {
-  if (!reportData.value) {
-    alert('Silakan buat laporan terlebih dahulu sebelum mengunduh.');
-    return;
-  }
+  if (!reportData.value) {
+    alert('Silakan buat laporan terlebih dahulu sebelum mengunduh.');
+    return;
+  }
 
-  loading.value = true; // Mengaktifkan loading
-  try {
-    // Panggil endpoint baru untuk download
-    const response = await axios.get('/api/reports/profit-loss/download', {
-      params: filters.value, // Kirim filter yang sama
-      responseType: 'blob', // PENTING: Minta respons sebagai blob (file)
-    });
+  loading.value = true; 
+  try {
+    const paramsToSend = {
+        ...filters.value,
+        branches_id: filters.value.branches_id || 0,
+    };
+    
+    const response = await axios.get('/api/reports/profit-loss/download', {
+      params: paramsToSend,
+      responseType: 'blob',
+    });
 
-    // Ambil nama file dari header Content-Disposition
-    const contentDisposition = response.headers['content-disposition'];
-    let filename = `Laporan_Untung_Rugi_${filters.value.start_date}_sd_${filters.value.end_date}.xlsx`;
-    if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-      if (filenameMatch && filenameMatch.length > 1) {
-        filename = filenameMatch[1];
-      }
-    }
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `Laporan_Untung_Rugi_${paramsToSend.start_date}_sd_${paramsToSend.end_date}.xlsx`;
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch && filenameMatch.length > 1) {
+        filename = filenameMatch[1];
+      }
+    }
 
-    // Buat link sementara dan klik untuk memulai download
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', filename); // Atur nama file
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url); // Bersihkan URL object
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
 
-    alert(`Laporan "${filename}" berhasil diunduh!`);
-  } catch (error: any) {
-    console.error('Gagal mengunduh laporan:', error);
-    alert(`Terjadi kesalahan saat mengunduh: ${error.message}`);
-  } finally {
-    loading.value = false;
-  }
+    alert(`Laporan "${filename}" berhasil diunduh!`);
+  } catch (error: any) {
+    console.error('Gagal mengunduh laporan:', error);
+    alert(`Terjadi kesalahan saat mengunduh: ${error.message}`);
+  } finally {
+    loading.value = false;
+  }
 };
 
 // --- Lifecycle ---
@@ -307,20 +351,26 @@ onMounted(() => {
   setDefaultDates();
   fetchBranches();
   
-  // Cek apakah cabang aktif ada di localStorage (sesuai kode Anda sebelumnya)
+  // Cek apakah cabang aktif ada di localStorage
   const activeBranchString = localStorage.getItem('activeBranch');
+  let branchIdFromLocalStorage: number | null = null;
+  
   if (activeBranchString) {
     try {
       const activeBranch = JSON.parse(activeBranchString);
       if (activeBranch && activeBranch.id) {
-        filters.value.branches_id = activeBranch.id;
-        // Otomatis muat laporan untuk cabang aktif jika tanggal sudah ada
-        fetchReport();
+        branchIdFromLocalStorage = activeBranch.id;
       }
     } catch(e) {
       console.error("Gagal parse activeBranch dari localStorage", e);
     }
   }
+
+  // Jika ada ID cabang dari Local Storage, gunakan itu. Jika tidak ada, gunakan 0 (Semua Cabang).
+  filters.value.branches_id = branchIdFromLocalStorage || 0;
+
+  // Otomatis muat laporan
+  fetchReport();
 });
 
 </script>
@@ -330,4 +380,3 @@ onMounted(() => {
   font-size: 0.95rem;
 }
 </style>
-

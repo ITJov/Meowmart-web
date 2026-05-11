@@ -125,7 +125,9 @@
             </thead>
             <tbody>
               <tr v-for="item in itemDetail.order.items" :key="item.id">
-                <td class="text-left">{{ item.item_name }}</td>
+                <td class="text-left">
+                  {{ item.item_name || (item.product ? item.product.name : 'Produk Tidak Diketahui') }}
+                </td>                
                 <td class="text-center">{{ item.quantity }}</td>
                 <td class="text-right">{{ formatCurrency(item.unit_price) }}</td>
                 <td class="text-right">{{ formatCurrency(item.subtotal) }}</td>

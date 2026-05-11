@@ -131,6 +131,14 @@
                       variant="outlined" density="compact"
                    />
                 </VCol>
+                <VCol cols="12" md="3">
+                <VTextField 
+                  v-model="productDetailData.expiry_date" 
+                  type="date" 
+                  label="Tgl Kadaluwarsa" 
+                  :rules="[v => !!v || 'Wajib diisi']"
+                />
+              </VCol>
              </VRow>
           </VForm>
        </VCardText>
@@ -177,6 +185,7 @@ const productDetailData = ref({
     purchase_price: 0,
     sales_price: 0,
     current_stock: 0,
+    expiry_date: null as string | null, 
     stock_alert: 0,
 });
 
@@ -243,6 +252,7 @@ const fetchProduct = async () => {
                 purchase_price: detail.purchase_price,
                 sales_price: detail.sales_price,
                 current_stock: detail.current_stock,
+                expiry_date:detail.expiry_date,
                 stock_alert: detail.stock_alert, 
             }
         }
@@ -312,6 +322,10 @@ const save = async () => {
   formData.append('sales_price', String(productDetailData.value.sales_price));
   formData.append('current_stock', String(productDetailData.value.current_stock));
   formData.append('stock_alert', String(productDetailData.value.stock_alert));
+
+  if (productDetailData.value.expiry_date) {
+      formData.append('expiry_date', productDetailData.value.expiry_date);
+  }
 
   const config = {
       headers: {

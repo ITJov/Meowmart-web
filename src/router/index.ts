@@ -35,6 +35,10 @@ import AddDiscount from '@/pages/views/discount/addDiscount.vue'
 import TaxView from '@/pages/views/tax/taxView.vue'
 import ProfileView from '@/pages/views/profile/profileView.vue'
 import AddPembayaranKeluar from '@/pages/views/payment/addPembayaranKeluar.vue'
+import ProductDetailView from '@/pages/views/products/productDetailView.vue'
+import { layouts } from 'chart.js'
+import TopServiceReport from '@/pages/views/laporan/topServiceReport.vue'
+import PetTypeView from '@/pages/views/pets/petTypeView.vue'
 
 
 const routes = [
@@ -99,6 +103,16 @@ const routes = [
     }
   },
 
+  // pet type
+  {
+    path: '/pet-type',
+    name: 'pets-type-management',
+    component: PetTypeView,
+    meta: {
+      layout: 'default' 
+    }
+  },
+
   // pet hotel
   {
     path: '/petHotel',
@@ -146,6 +160,16 @@ const routes = [
     component: productList,
     meta: {
       layout: 'default' 
+    }
+  },
+
+  // detail product
+  {
+    path: '/products/:id/detail',
+    name: 'ProductDetail',
+    component: ProductDetailView,
+    meta: {
+      layout: 'default'
     }
   },
 
@@ -365,6 +389,15 @@ const routes = [
       component: StockRecapReport, 
       meta: { layout: 'default' }
     },
+
+    // report penjualan by service
+  {
+      path: '/laporan/penjualan-by-service', 
+      name: 'service-report',    
+      component: TopServiceReport, 
+      meta: { layout: 'default' }
+    },
+
 
 // dashboard
   {
