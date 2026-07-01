@@ -106,7 +106,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router' 
-import axios from '@/plugins/axios'
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components'
 
 // --- INISIALISASI ROUTER ---

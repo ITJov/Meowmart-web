@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import Sidebar from '../pages/sidebar/sidebar.vue'
+import { Sidebar } from '../pages/sidebar/sidebar.vue'
 import Navbar from '../pages/navbar/navbar.vue'
 
 const isSidebarOpen = ref(true)

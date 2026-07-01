@@ -122,7 +122,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 
 // 1. Interface untuk mendefinisikan tipe Header agar properti 'sortable' dikenali
 interface DataTableHeader {

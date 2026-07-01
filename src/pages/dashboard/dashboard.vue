@@ -179,7 +179,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../plugins/axios'
 import { Bar } from 'vue-chartjs'
 import { 
   Chart as ChartJS, 

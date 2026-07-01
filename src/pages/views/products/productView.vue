@@ -238,8 +238,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
-import axios from '@/plugins/axios'; 
-import CheckoutModal from './checkoutModal.vue'; 
+import axios from '../../../plugins/axios'
+import * as CheckoutModalModule from './checkoutModal.vue';
+const CheckoutModal = ((CheckoutModalModule as any).default || CheckoutModalModule) as any;
 import type { VForm } from 'vuetify/components';
 import { Html5QrcodeScanner } from "html5-qrcode";
 

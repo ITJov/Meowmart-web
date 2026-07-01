@@ -85,7 +85,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 
 interface TopService {
   service_name: string;

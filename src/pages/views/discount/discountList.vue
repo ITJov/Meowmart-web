@@ -79,9 +79,9 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
-import axios from '@/plugins/axios';
-// Asumsi: DiscountForm.vue berada di path yang bisa diakses
-import DiscountForm from '@/pages/views/discount/addDiscount.vue'; 
+import axios from '../../../plugins/axios'
+import * as DiscountFormModule from './addDiscount.vue';
+const DiscountForm = (DiscountFormModule as any).default ?? DiscountFormModule;
 
 const loading = ref(true);
 const search = ref('');

@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 
 const route = useRoute();
 const product = ref<any>(null);

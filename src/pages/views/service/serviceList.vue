@@ -105,7 +105,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components';
 
 const services = ref<any[]>([]);

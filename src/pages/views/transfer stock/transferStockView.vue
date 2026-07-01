@@ -129,7 +129,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -209,7 +209,7 @@ onMounted(() => {
   fetchTransfers();
 });
 
-let searchTimeout: number;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {

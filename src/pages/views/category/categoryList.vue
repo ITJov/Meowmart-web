@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue';
 import type { VForm } from 'vuetify/components';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 
 // State untuk Tabel
 const categories = ref<any[]>([]);

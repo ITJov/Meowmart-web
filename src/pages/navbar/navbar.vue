@@ -106,7 +106,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from '@/plugins/axios'
+import axios from '../../plugins/axios'
 
 const router = useRouter()
 const emit = defineEmits(['toggle-sidebar'])

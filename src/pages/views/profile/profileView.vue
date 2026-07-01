@@ -192,7 +192,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components';
 
 const router = useRouter();

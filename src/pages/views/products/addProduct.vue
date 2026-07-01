@@ -155,7 +155,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import axios from '@/plugins/axios'
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components'
 
 // State

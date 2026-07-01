@@ -135,7 +135,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 
 // --- Interface ---
 interface DataTableHeader {

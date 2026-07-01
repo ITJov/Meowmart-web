@@ -86,7 +86,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import axios from '@/plugins/axios'; 
+import axios from '../../../plugins/axios'
 
 // --- State ---
 const loading = ref(false);
@@ -258,7 +258,7 @@ onMounted(() => {
 });
 
 // Watcher untuk search (debounce)
-let searchTimeout: number;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(() => filters.value.search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {

@@ -187,7 +187,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components';
 
 // --- INTERFACE ---

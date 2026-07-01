@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
-import axios from '@/plugins/axios'
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components'
 
 // Interface Data

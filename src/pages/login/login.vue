@@ -71,9 +71,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { VForm } from 'vuetify/components'
-import axios from '@/plugins/axios'
+import axios from '../../plugins/axios'
 import { useRouter, useRoute } from 'vue-router'
-import Dashboard from '../dashboard/dashboard.vue'
 
 const refVForm = ref<VForm>()
 const email = ref('')

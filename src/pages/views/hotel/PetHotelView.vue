@@ -82,7 +82,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 
 // --- State Management ---
 const petHotelList = ref<any[]>([]);

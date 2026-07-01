@@ -83,7 +83,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'; // PERBAIKAN: Tambahkan 'computed'
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components';
 
 const loading = ref(true);

@@ -118,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components';
 
 // Tambahkan di atas <script setup>

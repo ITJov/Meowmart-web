@@ -151,7 +151,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from '@/plugins/axios';
+import axios from '../../../plugins/axios'
 import type { VForm } from 'vuetify/components';
 
 const router = useRouter();
@@ -169,9 +169,9 @@ const purchaseData = ref({
 });
 
 // State untuk dropdown filter
-const categories = ref([]);
-const brands = ref([]);
-const products = ref([]);
+const categories = ref<any[]>([]);
+const brands = ref<any[]>([]);
+const products = ref<any[]>([]);
 // DIUBAH: Tipe disesuaikan untuk menerima undefined dari 'clearable'
 const selectedCategory = ref<number | null | undefined>(null);
 const selectedBrand = ref<number | null | undefined>(null);
